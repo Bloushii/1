@@ -185,7 +185,7 @@ td.neg { color: var(--bad); }
     </div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>التاريخ</th><th>الكرت</th><th>الجهاز</th><th>العدد</th><th>شراء/جهاز</th><th>المجموع</th><th>بيع/جهاز</th><th>فرق البيع</th><th></th></tr></thead>
+        <thead><tr><th></th><th>التاريخ</th><th>الكرت</th><th>الجهاز</th><th>العدد</th><th>شراء/جهاز</th><th>المجموع</th><th>بيع/جهاز</th><th>فرق البيع</th><th></th></tr></thead>
         <tbody id="log"></tbody>
       </table>
     </div>
@@ -212,6 +212,7 @@ let purchases = [];   // {id, month, card, model, qty, buy, sell|null, at}
 let db = null, col = null, canWrite = true;
 let month = nowMonth() < START ? START : nowMonth();
 let pendingDelete = null;
+let lastAdded = null;
 
 function months() {
   const set = new Set(purchases.map(p => p.month));
@@ -257,7 +258,7 @@ function renderCards(s) {
 function renderLog(s) {
   const rows = [...s.ps].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
   if (!rows.length) {
-    $("log").innerHTML = `<tr><td colspan="9" class="empty">ما في مشتريات مسجلة في ${monthLabel(month)}. سجّل أول شراء من النموذج.</td></tr>`;
+    $("log").innerHTML = `<tr><td colspan="10" class="empty">ما في مشتريات مسجلة في ${monthLabel(month)}. سجّل أول شراء من النموذج.</td></tr>`;
     return;
   }
   $("log").innerHTML = rows.map(p => {
@@ -277,9 +278,9 @@ function renderLog(s) {
     const del = !canWrite ? "" : pendingDelete === p.id
       ? `<button class="link danger" data-del-yes="${p.id}">تأكيد الحذف</button><button class="link" data-del-no="1">إلغاء</button>`
       : `<button class="link danger" data-del="${p.id}">حذف</button>`;
-    return `<tr><td>${d}</td><td>${cardName(p.card)} <span class="l4" style="color:var(--muted);font-size:.78rem">${p.card}</span></td>
+    return `<tr><td>${del}</td><td>${d}</td><td>${cardName(p.card)} <span class="l4" style="color:var(--muted);font-size:.78rem">${p.card}</span></td>
       <td>${p.model === "Pro" ? "برو" : "برو ماكس"}</td><td>${p.qty}</td><td>${fmt(p.buy)}</td><td>${fmt(total)}</td>
-      <td>${sellCell}</td>${diffCell}<td>${del}</td></tr>`;
+      <td>${sellCell}</td>${diffCell}</tr>`;
   }).join("");
 }
 
@@ -337,12 +338,20 @@ $("form").addEventListener("submit", async e => {
   const doc = { month, card, model, qty, buy, sell, at: new Date().toISOString() };
   $("addBtn").disabled = true;
   try {
-    await col.add(doc);
+    lastAdded = await col.add(doc);
     setMsg(`انضاف: ${qty} × ${model === "Pro" ? "برو" : "برو ماكس"} على كرت ${cardName(card)}.`, "ok");
+    $("msg").insertAdjacentHTML("beforeend", ` <button type="button" class="link danger" id="undoBtn">تراجع</button>`);
     $("fBuy").value = ""; $("fSell").value = ""; $("fQty").value = "1";
   } catch (err) {
     setMsg(err && err.code === "invalid_argument" ? "ما عندك صلاحية تعديل." : "ما انحفظ، جرّب مرة ثانية.", "err");
   } finally { $("addBtn").disabled = false; }
+});
+
+$("msg").addEventListener("click", async e => {
+  if (e.target.id !== "undoBtn" || !lastAdded) return;
+  e.target.disabled = true;
+  try { await lastAdded.delete(); lastAdded = null; setMsg("تم التراجع، انحذفت العملية.", "ok"); }
+  catch { e.target.disabled = false; setMsg("ما قدرت أتراجع، احذفها من جدول المشتريات.", "err"); }
 });
 
 $("log").addEventListener("click", async e => {

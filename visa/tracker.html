@@ -282,8 +282,9 @@ function renderPreview(s) {
   const sellRaw = $("fSell").value;
   if (!card) { $("preview").textContent = "اختار كرت وحط السعر."; return; }
   const used = s.per[card] || 0, total = qty * buy, after = used + total;
-  let html = `${cardName(card)}: مستخدم <b>${fmt(used)}</b> · بعد هالشراء <b>${fmt(after)}</b> · يبقى <b>${fmt(Math.max(LIMIT - after, 0))}</b>`;
-  if (after > LIMIT) html += `<br><span class="w">تنبيه: راح يتجاوز الحد بـ ${fmt(after - LIMIT)} د.ك وهالزيادة ما عليها كاش باك.</span>`;
+  let html = `${cardName(card)}: وصلت <b>${fmt(used)}</b> من ${fmt(LIMIT)} · باقي <b>${fmt(Math.max(LIMIT - used, 0))}</b>`;
+  if (used >= LIMIT) html += `<br><span class="w">تنبيه: هالكرت وصل ${fmt(used)}${used > LIMIT ? ` وتجاوز الحد بـ ${fmt(used - LIMIT)}` : ""}، أي شراء زيادة ما عليه كاش باك.</span>`;
+  else if (after > LIMIT) html += `<br><span class="w">تنبيه: وصلت ${fmt(used)} وباقي لك ${fmt(LIMIT - used)} بس، هالمبلغ (${fmt(total)}) أكثر من الباقي.</span>`;
   if (sellRaw !== "" && buy) {
     const loss = qty * (buy - (+sellRaw));
     const cbGain = (Math.min(after, LIMIT) - Math.min(used, LIMIT)) * RATE;

@@ -148,13 +148,6 @@ td.neg { color: var(--bad); }
           <label for="fCard">الكرت</label>
           <select id="fCard" required></select>
         </div>
-        <div class="field">
-          <span class="lbl" style="font-size:.82rem;color:var(--muted);font-weight:500">الجهاز</span>
-          <div class="seg">
-            <input type="radio" name="model" id="mPro" value="Pro"><label for="mPro">آيفون برو</label>
-            <input type="radio" name="model" id="mMax" value="Pro Max" checked><label for="mMax">برو ماكس</label>
-          </div>
-        </div>
         <div class="row2">
           <div class="field"><label for="fQty">العدد</label><input id="fQty" type="number" min="1" step="1" value="1" inputmode="numeric"></div>
           <div class="field"><label for="fBuy">سعر الواحد (شراء)</label><input id="fBuy" type="number" min="0" step="0.001" inputmode="decimal" placeholder="مثلاً 480"></div>
@@ -185,7 +178,7 @@ td.neg { color: var(--bad); }
     </div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th></th><th>التاريخ</th><th>الكرت</th><th>الجهاز</th><th>العدد</th><th>شراء/جهاز</th><th>المجموع</th><th>بيع/جهاز</th><th>فرق البيع</th><th></th></tr></thead>
+        <thead><tr><th></th><th>التاريخ</th><th>الكرت</th><th>العدد</th><th>شراء/جهاز</th><th>المجموع</th><th>بيع/جهاز</th><th>فرق البيع</th><th></th></tr></thead>
         <tbody id="log"></tbody>
       </table>
     </div>
@@ -208,7 +201,7 @@ const monthLabel = m => { const [y, mo] = m.split("-"); return AR_MONTHS[+mo - 1
 const nextMonth = m => { let [y, mo] = m.split("-").map(Number); mo++; if (mo > 12) { mo = 1; y++; } return y + "-" + String(mo).padStart(2, "0"); };
 const nowMonth = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
 
-let purchases = [];   // {id, month, card, model, qty, buy, sell|null, at}
+let purchases = [];   // {id, month, card, qty, buy, sell|null, at}
 let db = null, col = null, canWrite = true;
 let month = nowMonth() < START ? START : nowMonth();
 let pendingDelete = null;
@@ -258,7 +251,7 @@ function renderCards(s) {
 function renderLog(s) {
   const rows = [...s.ps].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
   if (!rows.length) {
-    $("log").innerHTML = `<tr><td colspan="10" class="empty">ما في مشتريات مسجلة في ${monthLabel(month)}. سجّل أول شراء من النموذج.</td></tr>`;
+    $("log").innerHTML = `<tr><td colspan="9" class="empty">ما في مشتريات مسجلة في ${monthLabel(month)}. سجّل أول شراء من النموذج.</td></tr>`;
     return;
   }
   $("log").innerHTML = rows.map(p => {
@@ -279,7 +272,7 @@ function renderLog(s) {
       ? `<button class="link danger" data-del-yes="${p.id}">تأكيد الحذف</button><button class="link" data-del-no="1">إلغاء</button>`
       : `<button class="link danger" data-del="${p.id}">حذف</button>`;
     return `<tr><td>${del}</td><td>${d}</td><td>${cardName(p.card)} <span class="l4" style="color:var(--muted);font-size:.78rem">${p.card}</span></td>
-      <td>${p.model === "Pro" ? "برو" : "برو ماكس"}</td><td>${p.qty}</td><td>${fmt(p.buy)}</td><td>${fmt(total)}</td>
+      <td>${p.qty}</td><td>${fmt(p.buy)}</td><td>${fmt(total)}</td>
       <td>${sellCell}</td>${diffCell}</tr>`;
   }).join("");
 }
@@ -329,17 +322,16 @@ $("cards").addEventListener("click", e => {
 $("form").addEventListener("submit", async e => {
   e.preventDefault();
   const card = $("fCard").value, qty = Math.floor(+$("fQty").value), buy = num($("fBuy").value), sell = num($("fSell").value);
-  const model = document.querySelector("input[name=model]:checked").value;
   if (!card) return setMsg("اختار الكرت.", "err");
   if (!(qty >= 1)) return setMsg("العدد لازم يكون ١ أو أكثر.", "err");
   if (!(buy > 0)) return setMsg("حط سعر شراء الجهاز.", "err");
   if (sell != null && !(sell >= 0)) return setMsg("سعر البيع غير صحيح.", "err");
   if (!col) return setMsg("الحفظ غير متاح الحين. افتح الصفحة من claude.ai وأنت مسجل دخول.", "err");
-  const doc = { month, card, model, qty, buy, sell, at: new Date().toISOString() };
+  const doc = { month, card, qty, buy, sell, at: new Date().toISOString() };
   $("addBtn").disabled = true;
   try {
     lastAdded = await col.add(doc);
-    setMsg(`انضاف: ${qty} × ${model === "Pro" ? "برو" : "برو ماكس"} على كرت ${cardName(card)}.`, "ok");
+    setMsg(`انضاف: ${qty} جهاز على كرت ${cardName(card)}.`, "ok");
     $("msg").insertAdjacentHTML("beforeend", ` <button type="button" class="link danger" id="undoBtn">تراجع</button>`);
     $("fBuy").value = ""; $("fSell").value = ""; $("fQty").value = "1";
   } catch (err) {
@@ -383,7 +375,7 @@ render();
   col.onSnapshot(snap => {
     purchases = snap.docs.map(d => {
       const x = d.data();
-      return { id: d.id, month: String(x.month), card: String(x.card), model: x.model === "Pro" ? "Pro" : "Pro Max",
+      return { id: d.id, month: String(x.month), card: String(x.card),
         qty: Number(x.qty) || 0, buy: Number(x.buy) || 0, sell: x.sell == null ? null : Number(x.sell), at: String(x.at || "") };
     });
     $("conn").textContent = `محفوظ · ${purchases.length} عملية`;

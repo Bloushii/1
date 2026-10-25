@@ -231,12 +231,12 @@ td.neg { color: var(--bad); font-weight: 600; }
           <select id="fCard" required></select>
         </div>
         <div class="row2">
-          <div class="field"><label for="fQty">العدد</label><input id="fQty" type="number" min="1" step="1" value="1" inputmode="numeric"></div>
-          <div class="field"><label for="fBuy">سعر الواحد</label><input id="fBuy" type="number" min="0" step="0.001" inputmode="decimal" placeholder="480"></div>
+          <div class="field"><label for="fQty">العدد</label><input id="fQty" type="text" value="1" inputmode="numeric" autocomplete="off"></div>
+          <div class="field"><label for="fBuy">سعر الواحد</label><input id="fBuy" type="text" inputmode="decimal" autocomplete="off" placeholder="480.800"></div>
         </div>
         <div class="field">
           <label for="fSell">سعر بيع الواحد (اختياري)</label>
-          <input id="fSell" type="number" min="0" step="0.001" inputmode="decimal" placeholder="اتركه فاضي إذا بعدك ما بعت">
+          <input id="fSell" type="text" inputmode="decimal" autocomplete="off" placeholder="اتركه فاضي إذا بعدك ما بعت">
         </div>
         <div class="preview" id="preview">اختار كرت وحط السعر.</div>
         <button class="primary" type="submit" id="addBtn">إضافة</button>
@@ -363,7 +363,7 @@ function renderLog(s) {
     let sellCell, diffCell;
     if (p.sell == null) {
       sellCell = canWrite
-        ? `<span class="sellbox"><input type="number" min="0" step="0.001" id="sell-${p.id}" aria-label="سعر البيع" placeholder="بعته بكم؟"><button class="link" data-sell="${p.id}">حفظ</button></span>`
+        ? `<span class="sellbox"><input type="text" inputmode="decimal" autocomplete="off" id="sell-${p.id}" aria-label="سعر البيع" placeholder="بعته بكم؟"><button class="link" data-sell="${p.id}">حفظ</button></span>`
         : `<span class="badge">ما انباع</span>`;
       diffCell = `<td><span class="badge">ما انباع</span></td>`;
     } else {
@@ -380,15 +380,15 @@ function renderLog(s) {
 }
 
 function renderPreview(s) {
-  const card = $("fCard").value, qty = +$("fQty").value || 0, buy = +$("fBuy").value || 0;
-  const sellRaw = $("fSell").value;
+  const card = $("fCard").value, qty = num($("fQty").value) || 0, buy = num($("fBuy").value) || 0;
+  const sell = num($("fSell").value);
   if (!card) { $("preview").textContent = "اختار كرت وحط السعر."; return; }
   const used = s.per[card] || 0, total = qty * buy, after = used + total;
   let html = `${cardName(card)}: وصلت <b>${fmt(used)}</b> من ${fmt(LIMIT)} · باقي <b>${fmt(Math.max(LIMIT - used, 0))}</b>`;
   if (used >= LIMIT) html += `<span class="w">تنبيه: هالكرت وصل ${fmt(used)}${used > LIMIT ? ` وتجاوز الحد بـ ${fmt(used - LIMIT)}` : ""}، أي شراء زيادة ما عليه كاش باك.</span>`;
   else if (after > LIMIT) html += `<span class="w">تنبيه: وصلت ${fmt(used)} وباقي لك ${fmt(LIMIT - used)} بس، هالمبلغ (${fmt(total)}) أكثر من الباقي.</span>`;
-  if (sellRaw !== "" && buy) {
-    const loss = qty * (buy - (+sellRaw));
+  if (sell != null && !isNaN(sell) && buy) {
+    const loss = qty * (buy - sell);
     const cbGain = (Math.min(after, LIMIT) - Math.min(used, LIMIT)) * RATE;
     html += `<br>خسارة البيع <b>${fmt(loss)}</b> · كاش باك هالشراء <b>${fmt(cbGain)}</b> · الصافي <b>${fmt(cbGain - loss)}</b>`;
   }
@@ -401,7 +401,16 @@ function render() {
 }
 
 function setMsg(t, kind) { $("msg").textContent = t; $("msg").className = "msg " + (kind || ""); }
-const num = v => v === "" || v == null ? null : Number(v);
+// Accepts Arabic/Persian digits and the Arabic decimal mark (٫), so 480.8 / ٤٨٠٫٨ / 480,8 all read as 480.8
+const num = v => {
+  if (v == null) return null;
+  let s = String(v).trim()
+    .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x0660)
+    .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x06F0)
+    .replace(/[٫,،]/g, ".").replace(/[٬\s]/g, "");
+  if (s === "") return null;
+  return /^\d*\.?\d*$/.test(s) && s !== "." ? Number(s) : NaN;
+};
 
 $("fCard").innerHTML = `<option value="">— اختار —</option>` + CARDS.map(c => `<option value="${c.last4}">${c.name} · ${c.last4}</option>`).join("");
 ["fCard","fQty","fBuy","fSell"].forEach(id => $(id).addEventListener("input", () => render()));
@@ -418,9 +427,9 @@ $("cards").addEventListener("click", e => {
 
 $("form").addEventListener("submit", async e => {
   e.preventDefault();
-  const card = $("fCard").value, qty = Math.floor(+$("fQty").value), buy = num($("fBuy").value), sell = num($("fSell").value);
+  const card = $("fCard").value, qty = num($("fQty").value), buy = num($("fBuy").value), sell = num($("fSell").value);
   if (!card) return setMsg("اختار الكرت.", "err");
-  if (!(qty >= 1)) return setMsg("العدد لازم يكون ١ أو أكثر.", "err");
+  if (!(qty >= 1) || qty % 1) return setMsg("العدد لازم يكون ١ أو أكثر.", "err");
   if (!(buy > 0)) return setMsg("حط سعر شراء الجهاز.", "err");
   if (sell != null && !(sell >= 0)) return setMsg("سعر البيع غير صحيح.", "err");
   if (!col) return setMsg("الحفظ غير متاح الحين. افتح الصفحة من claude.ai وأنت مسجل دخول.", "err");

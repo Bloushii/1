@@ -418,8 +418,9 @@ $("mNext").addEventListener("click", () => { const l = months(); const i = l.ind
 $("cards").addEventListener("click", e => {
   const b = e.target.closest("[data-card]"); if (!b) return;
   $("fCard").value = b.dataset.card;
+  const rem = LIMIT - (stats().per[b.dataset.card] || 0);
   render(); $("fBuy").focus({ preventScroll: window.innerWidth > 900 });
-  setMsg("");
+  if (rem <= 0) setMsg("هالكرت خلص حده لهالشهر.", "err"); else setMsg("");
 });
 
 $("form").addEventListener("submit", async e => {

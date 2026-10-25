@@ -1,34 +1,56 @@
 <title>كروت الكاش باك</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Reem+Kufi:wght@600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
-/* Layout: summary strip on top, entry form beside a grid of 14 card tiles, purchase log below */
+/* Layout: hero band with the month's budget meter and KPIs; form on the side, 14 card tiles drawn as payment cards; purchase ledger below */
 :root {
-  --bg: #f3f5f7;
+  --bg: #eef1f4;
   --surface: #ffffff;
-  --fg: #16202a;
-  --muted: #5d6b78;
-  --line: #dde3e9;
-  --accent: #0f5c6e;
-  --accent-soft: #e2f0f2;
-  --good: #1d7a46;
-  --warn: #b86a00;
+  --sunken: #f5f7f9;
+  --fg: #121a22;
+  --muted: #5f6d7a;
+  --line: #dde3e8;
+  --accent: #0e6b74;
+  --accent-ink: #ffffff;
+  --accent-soft: #dff0f1;
+  --gold: #b7892f;
+  --good: #1c7a48;
+  --warn: #a8640a;
   --bad: #b3261e;
-  --track: #e6eaee;
-  --f-display: "Reem Kufi", "IBM Plex Sans Arabic", system-ui, sans-serif;
-  --f-body: "IBM Plex Sans Arabic", system-ui, "Segoe UI", Tahoma, sans-serif;
+  --track: #e3e8ec;
+  --hero-a: #0c2a33;
+  --hero-b: #123e48;
+  --hero-fg: #eef6f7;
+  --hero-muted: #9fbcc1;
+  --hero-track: rgba(255,255,255,.14);
+  --card-a: #16323b;
+  --card-b: #0f4650;
+  --card-fg: #f1f7f8;
+  --card-muted: #a7c3c8;
+  --shadow: 0 1px 2px rgba(16,32,40,.06), 0 8px 24px rgba(16,32,40,.06);
+  --f-display: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans Arabic", "Readex Pro", system-ui, "Segoe UI", Tahoma, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0f1418; --surface: #182027; --fg: #e6ecf1; --muted: #93a2ae; --line: #2a353f;
-    --accent: #5cc2d4; --accent-soft: #163640; --good: #5ccf8b; --warn: #f0a640; --bad: #f08a80; --track: #26313a;
+    --bg: #0b1014; --surface: #141c22; --sunken: #10171c; --fg: #e7eef2; --muted: #8fa0ab; --line: #24313a;
+    --accent: #4fc3cc; --accent-ink: #062126; --accent-soft: #123239; --gold: #e0b45a;
+    --good: #5bd08c; --warn: #f0a640; --bad: #f28b82; --track: #22303a;
+    --hero-a: #0f2a31; --hero-b: #0b1f25; --hero-fg: #eef6f7; --hero-muted: #8fb0b6; --hero-track: rgba(255,255,255,.12);
+    --card-a: #173842; --card-b: #0e252c; --card-fg: #eef6f7; --card-muted: #93b3b9;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0f1418; --surface: #182027; --fg: #e6ecf1; --muted: #93a2ae; --line: #2a353f;
-  --accent: #5cc2d4; --accent-soft: #163640; --good: #5ccf8b; --warn: #f0a640; --bad: #f08a80; --track: #26313a;
+  --bg: #0b1014; --surface: #141c22; --sunken: #10171c; --fg: #e7eef2; --muted: #8fa0ab; --line: #24313a;
+  --accent: #4fc3cc; --accent-ink: #062126; --accent-soft: #123239; --gold: #e0b45a;
+  --good: #5bd08c; --warn: #f0a640; --bad: #f28b82; --track: #22303a;
+  --hero-a: #0f2a31; --hero-b: #0b1f25; --hero-fg: #eef6f7; --hero-muted: #8fb0b6; --hero-track: rgba(255,255,255,.12);
+  --card-a: #173842; --card-b: #0e252c; --card-fg: #eef6f7; --card-muted: #93b3b9;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -36,113 +58,173 @@ body {
   background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.55;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 20px 48px;
+  padding-block: 20px 56px;
   font-variant-numeric: tabular-nums;
 }
-.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; }
-h1 { font-family: var(--f-display); font-size: 1.9rem; margin: 0; line-height: 1.2; text-wrap: balance; }
-.sub { color: var(--muted); margin: 2px 0 0; font-size: .9rem; }
-h2 { font-size: 1.05rem; margin: 0; font-weight: 700; }
-label { font-size: .82rem; color: var(--muted); font-weight: 500; }
+.wrap { max-width: 1160px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+.num { font-family: var(--f-display); font-variant-numeric: tabular-nums; }
+
+/* Top bar */
+.topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.mark { width: 40px; height: 40px; border-radius: 11px; background: linear-gradient(135deg, var(--card-a), var(--card-b)); display: grid; place-items: center; box-shadow: var(--shadow); flex: none; }
+.mark i { width: 16px; height: 12px; border-radius: 3px; background: linear-gradient(135deg, var(--gold), color-mix(in srgb, var(--gold) 60%, #fff)); }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: 1.45rem; margin: 0; line-height: 1.2; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0; font-size: .85rem; }
+.month { display: flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px; box-shadow: var(--shadow); }
+.month button { border: 0; background: none; width: 34px; height: 34px; border-radius: 999px; padding: 0; color: var(--fg); font-size: 1.1rem; line-height: 1; }
+.month button:hover:not(:disabled) { background: var(--sunken); }
+.month select { border: 0; background: none; font-family: var(--f-display); font-weight: 500; padding: 6px 4px; width: auto; text-align: center; }
+
+/* Hero */
+.hero { background: linear-gradient(140deg, var(--hero-a), var(--hero-b)); color: var(--hero-fg); border-radius: 18px; padding: 24px; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 2fr); gap: 28px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+.hero::after { content: ""; position: absolute; inset: auto -80px -120px auto; width: 320px; height: 320px; border-radius: 50%; border: 1px solid var(--hero-track); pointer-events: none; }
+.hero .lbl { font-size: .82rem; color: var(--hero-muted); letter-spacing: .02em; }
+.left-big { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.big { font-family: var(--f-display); font-weight: 600; font-size: clamp(2.2rem, 5vw, 3.1rem); line-height: 1; }
+.big small { font-size: .9rem; font-weight: 400; color: var(--hero-muted); margin-inline-start: 6px; }
+.meter { height: 10px; background: var(--hero-track); border-radius: 99px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 55%, #fff)); border-radius: 99px; }
+.meter-legend { display: flex; justify-content: space-between; font-size: .8rem; color: var(--hero-muted); gap: 8px; }
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-content: center; }
+.kpi { background: var(--hero-track); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kpi .v { font-family: var(--f-display); font-weight: 600; font-size: 1.45rem; line-height: 1.15; overflow-wrap: anywhere; }
+.kpi .note { font-size: .75rem; color: var(--hero-muted); min-height: 1.1em; }
+.kpi.pos .v { color: color-mix(in srgb, var(--good) 45%, #fff); }
+.kpi.neg .v { color: color-mix(in srgb, var(--bad) 45%, #fff); }
+
+/* Panels */
+.main { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 22px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; box-shadow: var(--shadow); }
+.panel-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+h2 { font-family: var(--f-display); font-size: 1.05rem; font-weight: 600; margin: 0; }
+.hint { font-size: .8rem; color: var(--muted); }
+.formpanel { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
+
+form { display: flex; flex-direction: column; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+label { font-size: .8rem; color: var(--muted); font-weight: 500; }
 select, input {
-  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
-  padding: 8px 10px; width: 100%; min-width: 0;
+  font: inherit; color: var(--fg); background: var(--sunken); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; width: 100%; min-width: 0; transition: border-color .15s, background .15s;
 }
+input:hover, select:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 select:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 8px 14px; }
-button.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); font-weight: 600; }
-button.link { border: 0; background: none; color: var(--accent); padding: 4px 6px; font-size: .85rem; }
+input::placeholder { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 10px 16px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-family: var(--f-display); font-weight: 600; padding: 12px 16px; }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+button.link { border: 0; background: none; color: var(--accent); padding: 4px 6px; font-size: .85rem; border-radius: 6px; }
+button.link:hover { background: var(--accent-soft); }
 button.danger { color: var(--bad); }
+button.danger:hover { background: color-mix(in srgb, var(--bad) 10%, transparent); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
-.month { display: flex; align-items: center; gap: 8px; }
-.month select { width: auto; background: var(--surface); }
-
-.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.stat { background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.stat .k { font-size: .8rem; color: var(--muted); }
-.stat .v { font-size: 1.5rem; font-weight: 700; }
-.stat .v small { font-size: .8rem; font-weight: 500; color: var(--muted); }
-.bigbar { grid-column: 1 / -1; background: var(--surface); padding: 0 16px 14px; }
-.bar { height: 8px; background: var(--track); border-radius: 99px; overflow: hidden; }
-.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
-.bar.full > i { background: var(--good); }
-.bar.over > i { background: var(--bad); }
-
-.main { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px; align-items: start; }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-form { display: flex; flex-direction: column; gap: 12px; }
-.field { display: flex; flex-direction: column; gap: 4px; }
-.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.seg input { position: absolute; opacity: 0; pointer-events: none; }
-.seg label { border: 1px solid var(--line); border-radius: 8px; padding: 8px; text-align: center; color: var(--fg); font-size: .9rem; cursor: pointer; }
-.seg input:checked + label { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
-.preview { font-size: .85rem; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 10px; }
-.preview b { color: var(--fg); }
-.preview .w { color: var(--warn); font-weight: 600; }
-.msg { font-size: .85rem; min-height: 1.2em; }
+.preview { font-size: .85rem; color: var(--muted); background: var(--sunken); border: 1px dashed var(--line); border-radius: 10px; padding: 12px; line-height: 1.7; }
+.preview b { color: var(--fg); font-family: var(--f-display); font-weight: 600; }
+.preview .w { display: block; margin-top: 6px; color: var(--warn); font-weight: 600; }
+.msg { font-size: .85rem; min-height: 1.3em; }
 .msg.err { color: var(--bad); }
 .msg.ok { color: var(--good); }
 
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; text-align: start; }
-.card:hover { border-color: var(--accent); }
-.card.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-.card .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-.card .nm { font-weight: 600; overflow-wrap: anywhere; }
-.card .l4 { font-size: .8rem; color: var(--muted); direction: ltr; letter-spacing: .06em; white-space: nowrap; }
-.card .rem { font-size: 1.15rem; font-weight: 700; }
-.card .rem small { font-size: .78rem; color: var(--muted); font-weight: 500; }
-.pill { font-size: .72rem; padding: 2px 8px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
-.pill.done { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); }
-.pill.over { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }
-.pill.open { background: var(--accent-soft); color: var(--accent); }
-
-.tablewrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: .9rem; min-width: 640px; }
-th, td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: start; white-space: nowrap; }
-th { font-size: .78rem; color: var(--muted); font-weight: 500; }
-td.pos { color: var(--good); }
-td.neg { color: var(--bad); }
-.unsold { color: var(--warn); font-size: .82rem; }
-.sellbox { display: inline-flex; gap: 4px; align-items: center; }
-.sellbox input { width: 90px; padding: 4px 6px; }
-.empty { color: var(--muted); padding: 18px 4px; text-align: center; }
-.status { font-size: .82rem; color: var(--muted); }
-
-@media (max-width: 860px) {
-  .main { grid-template-columns: 1fr; }
-  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Payment cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.card {
+  position: relative; text-align: start; border: 0; border-radius: 14px; padding: 14px 16px; min-height: 128px;
+  background: linear-gradient(135deg, var(--card-a), var(--card-b)); color: var(--card-fg);
+  display: flex; flex-direction: column; justify-content: space-between; gap: 10px; overflow: hidden;
+  box-shadow: var(--shadow); transition: transform .15s ease, box-shadow .15s ease;
 }
-@media (prefers-reduced-motion: no-preference) { .bar > i { transition: width .3s ease; } }
+.card::before { content: ""; position: absolute; inset: -40% -30% auto auto; width: 70%; aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,.06); pointer-events: none; }
+.card:hover { transform: translateY(-2px); }
+.card.sel { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent), var(--shadow); }
+.card.full { background: linear-gradient(135deg, color-mix(in srgb, var(--good) 55%, var(--card-a)), var(--card-b)); }
+.card.over { background: linear-gradient(135deg, color-mix(in srgb, var(--bad) 55%, var(--card-a)), var(--card-b)); }
+.card .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.chip { width: 28px; height: 21px; border-radius: 5px; background: linear-gradient(135deg, var(--gold), color-mix(in srgb, var(--gold) 55%, #fff)); position: relative; flex: none; }
+.chip::after { content: ""; position: absolute; inset: 5px 8px; border: 1px solid rgba(0,0,0,.18); border-radius: 2px; }
+.card .l4 { font-family: var(--f-mono); font-size: .82rem; color: var(--card-muted); direction: ltr; letter-spacing: .12em; white-space: nowrap; }
+.card .nm { font-family: var(--f-display); font-weight: 500; font-size: .95rem; overflow-wrap: anywhere; line-height: 1.3; }
+.card .r3 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.card .rem { font-family: var(--f-display); font-weight: 600; font-size: 1.25rem; line-height: 1; }
+.card .rem small { font-size: .72rem; font-weight: 400; color: var(--card-muted); margin-inline-start: 4px; }
+.card .tag { font-size: .72rem; color: var(--card-muted); white-space: nowrap; }
+.cbar { height: 4px; background: rgba(255,255,255,.16); border-radius: 99px; overflow: hidden; }
+.cbar i { display: block; height: 100%; background: var(--gold); border-radius: 99px; }
+.card.full .cbar i { background: color-mix(in srgb, var(--good) 40%, #fff); }
+.card.over .cbar i { background: color-mix(in srgb, var(--bad) 40%, #fff); }
+
+/* Ledger */
+.tablewrap { overflow-x: auto; margin: 0 -4px; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .9rem; min-width: 640px; }
+th, td { padding: 11px 10px; border-bottom: 1px solid var(--line); text-align: start; white-space: nowrap; }
+th { font-size: .75rem; color: var(--muted); font-weight: 500; background: var(--sunken); }
+th:first-child { border-start-start-radius: 10px; }
+th:last-child { border-start-end-radius: 10px; }
+tbody tr:hover td { background: var(--sunken); }
+td .who { font-weight: 500; }
+td .l4s { font-family: var(--f-mono); color: var(--muted); font-size: .75rem; margin-inline-start: 6px; direction: ltr; display: inline-block; }
+td.pos { color: var(--good); font-weight: 600; }
+td.neg { color: var(--bad); font-weight: 600; }
+.badge { font-size: .74rem; padding: 3px 9px; border-radius: 99px; background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); font-weight: 600; }
+.sellbox { display: inline-flex; gap: 4px; align-items: center; }
+.sellbox input { width: 100px; padding: 5px 8px; border-radius: 8px; }
+.empty { color: var(--muted); padding: 28px 8px; text-align: center; white-space: normal; }
+.status { font-size: .8rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.status.live::before { background: var(--good); }
+
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr; }
+  .formpanel { position: static; }
+  .hero { grid-template-columns: 1fr; gap: 20px; padding: 20px; }
+}
+@media (max-width: 520px) {
+  .kpis { grid-template-columns: 1fr 1fr; }
+  .kpis .kpi:last-child { grid-column: 1 / -1; }
+  .cards { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .card { min-height: 116px; padding: 12px; }
+  .card .rem { font-size: 1.1rem; }
+}
+@media (prefers-reduced-motion: no-preference) { .meter i, .cbar i { transition: width .35s ease; } }
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } .card:hover { transform: none; } }
 </style>
 
 <div class="wrap" dir="rtl" lang="ar">
-  <header>
-    <div>
-      <h1>كروت الكاش باك</h1>
-      <p class="sub">١٤ فيزا × ١٬٠٠٠ د.ك · كاش باك ١٠٪ لين الحد · يبدأ من نوفمبر ٢٠٢٦</p>
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark" aria-hidden="true"><i></i></div>
+      <div>
+        <h1>كروت الكاش باك</h1>
+        <p class="sub">١٤ فيزا · حد ١٬٠٠٠ د.ك لكل كرت · كاش باك ١٠٪</p>
+      </div>
     </div>
     <div class="month">
-      <label for="month">الشهر</label>
+      <button type="button" id="mPrev" aria-label="الشهر السابق">›</button>
+      <label for="month" hidden>الشهر</label>
       <select id="month"></select>
+      <button type="button" id="mNext" aria-label="الشهر التالي">‹</button>
     </div>
-  </header>
+  </div>
 
-  <section class="summary" aria-label="ملخص الشهر">
-    <div class="stat"><span class="k">المصروف</span><span class="v" id="sSpent">0</span></div>
-    <div class="stat"><span class="k">الباقي للشراء</span><span class="v" id="sLeft">14,000</span></div>
-    <div class="stat"><span class="k">الكاش باك المتوقع</span><span class="v" id="sCb">0</span></div>
-    <div class="stat"><span class="k">صافي الربح (المباع)</span><span class="v" id="sNet">0</span></div>
-    <div class="bigbar"><div class="bar" id="sBar"><i style="width:0%"></i></div></div>
+  <section class="hero" aria-label="ملخص الشهر">
+    <div class="left-big">
+      <span class="lbl">الباقي للشراء هالشهر</span>
+      <span class="big" id="sLeft">14,000<small>د.ك</small></span>
+      <div class="meter" aria-hidden="true"><i id="sBar" style="width:0%"></i></div>
+      <div class="meter-legend"><span id="sSpent">صرفت 0</span><span id="sPct">0٪ من ١٤٬٠٠٠</span></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><span class="lbl">الكاش باك المتوقع</span><span class="v" id="sCb">0</span><span class="note" id="sCbNote"></span></div>
+      <div class="kpi" id="kDiff"><span class="lbl">فرق البيع</span><span class="v" id="sDiff">0</span><span class="note" id="sUnsold"></span></div>
+      <div class="kpi" id="kNet"><span class="lbl">صافي الربح</span><span class="v" id="sNet">0</span><span class="note">الكاش باك + فرق البيع</span></div>
+    </div>
   </section>
 
   <div class="main">
-    <section class="panel" aria-labelledby="addH">
-      <h2 id="addH">سجّل شراء</h2>
+    <section class="panel formpanel" aria-labelledby="addH">
+      <div class="panel-h"><h2 id="addH">سجّل شراء</h2></div>
       <form id="form" novalidate>
         <div class="field">
           <label for="fCard">الكرت</label>
@@ -150,7 +232,7 @@ td.neg { color: var(--bad); }
         </div>
         <div class="row2">
           <div class="field"><label for="fQty">العدد</label><input id="fQty" type="number" min="1" step="1" value="1" inputmode="numeric"></div>
-          <div class="field"><label for="fBuy">سعر الواحد (شراء)</label><input id="fBuy" type="number" min="0" step="0.001" inputmode="decimal" placeholder="مثلاً 480"></div>
+          <div class="field"><label for="fBuy">سعر الواحد</label><input id="fBuy" type="number" min="0" step="0.001" inputmode="decimal" placeholder="480"></div>
         </div>
         <div class="field">
           <label for="fSell">سعر بيع الواحد (اختياري)</label>
@@ -163,16 +245,16 @@ td.neg { color: var(--bad); }
     </section>
 
     <section class="panel" aria-labelledby="cardsH">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
+      <div class="panel-h">
         <h2 id="cardsH">الكروت</h2>
-        <span class="status" id="cardsNote">اضغط على كرت عشان تختاره</span>
+        <span class="hint" id="cardsNote">اضغط على الكرت عشان تختاره</span>
       </div>
       <div class="cards" id="cards"></div>
     </section>
   </div>
 
   <section class="panel" aria-labelledby="logH">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
+    <div class="panel-h">
       <h2 id="logH">المشتريات</h2>
       <span class="status" id="conn">جاري الاتصال…</span>
     </div>
@@ -192,10 +274,12 @@ const CARDS = [
   ["5154","معصومة قمبر"],["1743","الفرحان"],["3243","حسين مقيم"],["4637","حسن القلاف"],["3741","جابر ولد عمتي"],
   ["4332","حمود ولد عمي عباس"],["6954","الاء"]
 ].map(([last4, name]) => ({ last4, name }));
+const TOTAL = LIMIT * CARDS.length;
 const cardName = l4 => (CARDS.find(c => c.last4 === l4) || { name: l4 }).name;
 
 const $ = id => document.getElementById(id);
 const fmt = n => (Math.round(n * 1000) / 1000).toLocaleString("en-US", { maximumFractionDigits: 3 });
+const signed = n => (n > 0 ? "+" : "") + fmt(n);
 const AR_MONTHS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 const monthLabel = m => { const [y, mo] = m.split("-"); return AR_MONTHS[+mo - 1] + " " + y; };
 const nextMonth = m => { let [y, mo] = m.split("-").map(Number); mo++; if (mo > 12) { mo = 1; y++; } return y + "-" + String(mo).padStart(2, "0"); };
@@ -215,9 +299,13 @@ function months() {
   return [...set].sort();
 }
 function renderMonths() {
-  const sel = $("month"); const list = months();
-  sel.innerHTML = list.map(m => `<option value="${m}" ${m === month ? "selected" : ""}>${monthLabel(m)}</option>`).join("");
+  const list = months();
+  $("month").innerHTML = list.map(m => `<option value="${m}" ${m === month ? "selected" : ""}>${monthLabel(m)}</option>`).join("");
+  const i = list.indexOf(month);
+  $("mPrev").disabled = i <= 0;
+  $("mNext").disabled = i >= list.length - 1;
 }
+function goMonth(m) { month = m; pendingDelete = null; render(); }
 
 function stats(m = month) {
   const ps = purchases.filter(p => p.month === m);
@@ -226,24 +314,39 @@ function stats(m = month) {
   for (const p of ps) per[p.card] = (per[p.card] || 0) + p.qty * p.buy;
   let spent = 0, cb = 0;
   for (const c of CARDS) { spent += per[c.last4]; cb += Math.min(per[c.last4], LIMIT) * RATE; }
-  const sold = ps.filter(p => p.sell != null);
-  const sellDiff = sold.reduce((a, p) => a + p.qty * (p.sell - p.buy), 0);
+  const sellDiff = ps.filter(p => p.sell != null).reduce((a, p) => a + p.qty * (p.sell - p.buy), 0);
   const unsoldCount = ps.filter(p => p.sell == null).reduce((a, p) => a + p.qty, 0);
   return { ps, per, spent, cb, sellDiff, net: cb + sellDiff, unsoldCount };
 }
 
+function renderHero(s) {
+  const left = Math.max(TOTAL - s.spent, 0), pct = Math.min(s.spent / TOTAL * 100, 100);
+  $("sLeft").innerHTML = `${fmt(left)}<small>د.ك</small>`;
+  $("sBar").style.width = pct + "%";
+  $("sSpent").textContent = `صرفت ${fmt(s.spent)}`;
+  $("sPct").textContent = `${Math.round(pct)}٪ من ${fmt(TOTAL)}`;
+  $("sCb").textContent = fmt(s.cb);
+  $("sCbNote").textContent = `من أصل ${fmt(TOTAL * RATE)}`;
+  $("sDiff").textContent = signed(s.sellDiff);
+  $("sUnsold").textContent = s.unsoldCount ? `${s.unsoldCount} جهاز ما انباع` : "";
+  $("sNet").textContent = signed(s.net);
+  $("kDiff").className = "kpi" + (s.sellDiff > 0 ? " pos" : s.sellDiff < 0 ? " neg" : "");
+  $("kNet").className = "kpi" + (s.net > 0 ? " pos" : s.net < 0 ? " neg" : "");
+}
+
 function renderCards(s) {
   const selected = $("fCard").value;
+  const done = CARDS.filter(c => s.per[c.last4] >= LIMIT).length;
+  $("cardsNote").textContent = done ? `${done} من ${CARDS.length} خلصت` : "اضغط على الكرت عشان تختاره";
   $("cards").innerHTML = CARDS.map(c => {
     const sp = s.per[c.last4], rem = LIMIT - sp, pct = Math.min(sp / LIMIT * 100, 100);
     const state = sp > LIMIT ? "over" : sp >= LIMIT ? "full" : "";
-    const pill = sp > LIMIT ? `<span class="pill over">تجاوز ${fmt(sp - LIMIT)}</span>`
-      : sp >= LIMIT ? `<span class="pill done">خلص</span>`
-      : sp > 0 ? `<span class="pill open">مستخدم ${fmt(sp)}</span>` : "";
-    return `<button type="button" class="card ${selected === c.last4 ? "sel" : ""}" data-card="${c.last4}">
-      <div class="top"><span class="nm">${c.name}</span><span class="l4">•••• ${c.last4}</span></div>
-      <div class="top"><span class="rem">${fmt(Math.max(rem, 0))} <small>باقي</small></span>${pill}</div>
-      <div class="bar ${state}"><i style="width:${pct}%"></i></div>
+    const tag = sp > LIMIT ? `تجاوز ${fmt(sp - LIMIT)}` : sp >= LIMIT ? "خلص" : sp > 0 ? `صرفت ${fmt(sp)}` : "جديد";
+    return `<button type="button" class="card ${state} ${selected === c.last4 ? "sel" : ""}" data-card="${c.last4}" aria-pressed="${selected === c.last4}">
+      <div class="r1"><span class="chip" aria-hidden="true"></span><span class="l4">•••• ${c.last4}</span></div>
+      <div class="nm">${c.name}</div>
+      <div class="r3"><span class="rem">${fmt(Math.max(rem, 0))}<small>باقي</small></span><span class="tag">${tag}</span></div>
+      <div class="cbar" aria-hidden="true"><i style="width:${pct}%"></i></div>
     </button>`;
   }).join("");
 }
@@ -251,7 +354,7 @@ function renderCards(s) {
 function renderLog(s) {
   const rows = [...s.ps].sort((a, b) => (b.at || "").localeCompare(a.at || ""));
   if (!rows.length) {
-    $("log").innerHTML = `<tr><td colspan="8" class="empty">ما في مشتريات مسجلة في ${monthLabel(month)}. سجّل أول شراء من النموذج.</td></tr>`;
+    $("log").innerHTML = `<tr><td colspan="8" class="empty">ما في مشتريات مسجلة في ${monthLabel(month)}. اختار كرت وسجّل أول شراء.</td></tr>`;
     return;
   }
   $("log").innerHTML = rows.map(p => {
@@ -261,19 +364,18 @@ function renderLog(s) {
     if (p.sell == null) {
       sellCell = canWrite
         ? `<span class="sellbox"><input type="number" min="0" step="0.001" id="sell-${p.id}" aria-label="سعر البيع" placeholder="بعته بكم؟"><button class="link" data-sell="${p.id}">حفظ</button></span>`
-        : `<span class="unsold">لم يُبع</span>`;
-      diffCell = `<td class="unsold">—</td>`;
+        : `<span class="badge">ما انباع</span>`;
+      diffCell = `<td><span class="badge">ما انباع</span></td>`;
     } else {
       const diff = p.qty * (p.sell - p.buy);
       sellCell = fmt(p.sell);
-      diffCell = `<td class="${diff >= 0 ? "pos" : "neg"}">${diff >= 0 ? "+" : ""}${fmt(diff)}</td>`;
+      diffCell = `<td class="${diff >= 0 ? "pos" : "neg"}">${signed(diff)}</td>`;
     }
     const del = !canWrite ? "" : pendingDelete === p.id
       ? `<button class="link danger" data-del-yes="${p.id}">تأكيد الحذف</button><button class="link" data-del-no="1">إلغاء</button>`
       : `<button class="link danger" data-del="${p.id}">حذف</button>`;
-    return `<tr><td>${del}</td><td>${d}</td><td>${cardName(p.card)} <span class="l4" style="color:var(--muted);font-size:.78rem">${p.card}</span></td>
-      <td>${p.qty}</td><td>${fmt(p.buy)}</td><td>${fmt(total)}</td>
-      <td>${sellCell}</td>${diffCell}</tr>`;
+    return `<tr><td>${del}</td><td>${d}</td><td><span class="who">${cardName(p.card)}</span><span class="l4s">${p.card}</span></td>
+      <td>${p.qty}</td><td>${fmt(p.buy)}</td><td>${fmt(total)}</td><td>${sellCell}</td>${diffCell}</tr>`;
   }).join("");
 }
 
@@ -283,8 +385,8 @@ function renderPreview(s) {
   if (!card) { $("preview").textContent = "اختار كرت وحط السعر."; return; }
   const used = s.per[card] || 0, total = qty * buy, after = used + total;
   let html = `${cardName(card)}: وصلت <b>${fmt(used)}</b> من ${fmt(LIMIT)} · باقي <b>${fmt(Math.max(LIMIT - used, 0))}</b>`;
-  if (used >= LIMIT) html += `<br><span class="w">تنبيه: هالكرت وصل ${fmt(used)}${used > LIMIT ? ` وتجاوز الحد بـ ${fmt(used - LIMIT)}` : ""}، أي شراء زيادة ما عليه كاش باك.</span>`;
-  else if (after > LIMIT) html += `<br><span class="w">تنبيه: وصلت ${fmt(used)} وباقي لك ${fmt(LIMIT - used)} بس، هالمبلغ (${fmt(total)}) أكثر من الباقي.</span>`;
+  if (used >= LIMIT) html += `<span class="w">تنبيه: هالكرت وصل ${fmt(used)}${used > LIMIT ? ` وتجاوز الحد بـ ${fmt(used - LIMIT)}` : ""}، أي شراء زيادة ما عليه كاش باك.</span>`;
+  else if (after > LIMIT) html += `<span class="w">تنبيه: وصلت ${fmt(used)} وباقي لك ${fmt(LIMIT - used)} بس، هالمبلغ (${fmt(total)}) أكثر من الباقي.</span>`;
   if (sellRaw !== "" && buy) {
     const loss = qty * (buy - (+sellRaw));
     const cbGain = (Math.min(after, LIMIT) - Math.min(used, LIMIT)) * RATE;
@@ -295,28 +397,22 @@ function renderPreview(s) {
 
 function render() {
   const s = stats();
-  $("sSpent").innerHTML = `${fmt(s.spent)} <small>/ ${fmt(LIMIT * CARDS.length)}</small>`;
-  $("sLeft").textContent = fmt(Math.max(LIMIT * CARDS.length - s.spent, 0));
-  $("sCb").textContent = fmt(s.cb);
-  $("sNet").innerHTML = `${fmt(s.net)}${s.unsoldCount ? ` <small>· ${s.unsoldCount} جهاز ما انباع</small>` : ""}`;
-  $("sNet").style.color = s.net < 0 ? "var(--bad)" : s.net > 0 ? "var(--good)" : "";
-  const bar = $("sBar"); bar.firstElementChild.style.width = Math.min(s.spent / (LIMIT * CARDS.length) * 100, 100) + "%";
-  bar.className = "bar" + (s.spent >= LIMIT * CARDS.length ? " full" : "");
-  renderMonths(); renderCards(s); renderLog(s); renderPreview(s);
+  renderMonths(); renderHero(s); renderCards(s); renderLog(s); renderPreview(s);
 }
 
 function setMsg(t, kind) { $("msg").textContent = t; $("msg").className = "msg " + (kind || ""); }
 const num = v => v === "" || v == null ? null : Number(v);
 
-// Form setup
 $("fCard").innerHTML = `<option value="">— اختار —</option>` + CARDS.map(c => `<option value="${c.last4}">${c.name} · ${c.last4}</option>`).join("");
 ["fCard","fQty","fBuy","fSell"].forEach(id => $(id).addEventListener("input", () => render()));
-$("month").addEventListener("change", e => { month = e.target.value; pendingDelete = null; render(); });
+$("month").addEventListener("change", e => goMonth(e.target.value));
+$("mPrev").addEventListener("click", () => { const l = months(); const i = l.indexOf(month); if (i > 0) goMonth(l[i - 1]); });
+$("mNext").addEventListener("click", () => { const l = months(); const i = l.indexOf(month); if (i < l.length - 1) goMonth(l[i + 1]); });
 $("cards").addEventListener("click", e => {
   const b = e.target.closest("[data-card]"); if (!b) return;
   $("fCard").value = b.dataset.card;
   const rem = LIMIT - (stats().per[b.dataset.card] || 0);
-  render(); $("fBuy").focus();
+  render(); $("fBuy").focus({ preventScroll: window.innerWidth > 900 });
   if (rem <= 0) setMsg("هالكرت خلص حده لهالشهر.", "err"); else setMsg("");
 });
 
@@ -380,7 +476,8 @@ render();
         qty: Number(x.qty) || 0, buy: Number(x.buy) || 0, sell: x.sell == null ? null : Number(x.sell), at: String(x.at || "") };
     });
     $("conn").textContent = `محفوظ · ${purchases.length} عملية`;
+    $("conn").classList.add("live");
     render();
-  }, () => { $("conn").textContent = "انقطع الاتصال، حدّث الصفحة"; });
+  }, () => { $("conn").textContent = "انقطع الاتصال، حدّث الصفحة"; $("conn").classList.remove("live"); });
 })();
 </script>

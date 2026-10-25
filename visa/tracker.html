@@ -112,14 +112,6 @@ td.neg { color: var(--bad); }
 .sellbox input { width: 90px; padding: 4px 6px; }
 .empty { color: var(--muted); padding: 18px 4px; text-align: center; }
 .status { font-size: .82rem; color: var(--muted); }
-.hist tbody tr { cursor: pointer; }
-.hist tbody tr:hover td { background: var(--bg); }
-.hist tr.cur td { background: var(--accent-soft); }
-.hist tfoot td { font-weight: 700; border-bottom: 0; border-top: 2px solid var(--line); }
-.barcol { width: 30%; min-width: 120px; }
-.nbar { height: 10px; background: var(--track); border-radius: 99px; overflow: hidden; }
-.nbar > i { display: block; height: 100%; border-radius: 99px; background: var(--good); }
-.nbar.neg > i { background: var(--bad); }
 
 @media (max-width: 860px) {
   .main { grid-template-columns: 1fr; }
@@ -188,20 +180,6 @@ td.neg { color: var(--bad); }
       <table>
         <thead><tr><th></th><th>التاريخ</th><th>الكرت</th><th>العدد</th><th>شراء/جهاز</th><th>المجموع</th><th>بيع/جهاز</th><th>فرق البيع</th></tr></thead>
         <tbody id="log"></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="panel" aria-labelledby="histH">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
-      <h2 id="histH">ملخص الشهور</h2>
-      <span class="status">اضغط على شهر عشان تفتحه</span>
-    </div>
-    <div class="tablewrap">
-      <table class="hist">
-        <thead><tr><th>الشهر</th><th>المصروف</th><th>الكاش باك</th><th>فرق البيع</th><th>صافي الربح</th><th class="barcol"></th><th>ما انباع</th></tr></thead>
-        <tbody id="hist"></tbody>
-        <tfoot id="histTotal"></tfoot>
       </table>
     </div>
   </section>
@@ -299,24 +277,6 @@ function renderLog(s) {
   }).join("");
 }
 
-function renderHistory() {
-  const list = [...new Set(purchases.map(p => p.month))].sort().reverse();
-  if (!list.length) {
-    $("hist").innerHTML = `<tr><td colspan="7" class="empty">لما تسجل مشتريات يطلع هني ربح كل شهر.</td></tr>`;
-    $("histTotal").innerHTML = "";
-    return;
-  }
-  const rows = list.map(m => ({ m, ...stats(m) }));
-  const maxAbs = Math.max(...rows.map(r => Math.abs(r.net)), 1);
-  const sign = (v, cls) => `<td class="${v > 0 ? "pos" : v < 0 ? "neg" : ""}">${v > 0 ? "+" : ""}${fmt(v)}</td>`;
-  $("hist").innerHTML = rows.map(r => `<tr data-month="${r.m}" class="${r.m === month ? "cur" : ""}">
-      <td>${monthLabel(r.m)}</td><td>${fmt(r.spent)}</td><td>${fmt(r.cb)}</td>${sign(r.sellDiff)}${sign(r.net)}
-      <td><div class="nbar ${r.net < 0 ? "neg" : ""}"><i style="width:${Math.abs(r.net) / maxAbs * 100}%"></i></div></td>
-      <td>${r.unsoldCount ? `<span class="unsold">${r.unsoldCount} جهاز</span>` : "—"}</td></tr>`).join("");
-  const t = rows.reduce((a, r) => ({ spent: a.spent + r.spent, cb: a.cb + r.cb, sellDiff: a.sellDiff + r.sellDiff, net: a.net + r.net, unsold: a.unsold + r.unsoldCount }), { spent: 0, cb: 0, sellDiff: 0, net: 0, unsold: 0 });
-  $("histTotal").innerHTML = `<tr><td>المجموع</td><td>${fmt(t.spent)}</td><td>${fmt(t.cb)}</td>${sign(t.sellDiff)}${sign(t.net)}<td></td><td>${t.unsold ? `<span class="unsold">${t.unsold} جهاز</span>` : "—"}</td></tr>`;
-}
-
 function renderPreview(s) {
   const card = $("fCard").value, qty = +$("fQty").value || 0, buy = +$("fBuy").value || 0;
   const sellRaw = $("fSell").value;
@@ -342,7 +302,7 @@ function render() {
   $("sNet").style.color = s.net < 0 ? "var(--bad)" : s.net > 0 ? "var(--good)" : "";
   const bar = $("sBar"); bar.firstElementChild.style.width = Math.min(s.spent / (LIMIT * CARDS.length) * 100, 100) + "%";
   bar.className = "bar" + (s.spent >= LIMIT * CARDS.length ? " full" : "");
-  renderMonths(); renderCards(s); renderLog(s); renderPreview(s); renderHistory();
+  renderMonths(); renderCards(s); renderLog(s); renderPreview(s);
 }
 
 function setMsg(t, kind) { $("msg").textContent = t; $("msg").className = "msg " + (kind || ""); }
@@ -378,12 +338,6 @@ $("form").addEventListener("submit", async e => {
   } catch (err) {
     setMsg(err && err.code === "invalid_argument" ? "ما عندك صلاحية تعديل." : "ما انحفظ، جرّب مرة ثانية.", "err");
   } finally { $("addBtn").disabled = false; }
-});
-
-$("hist").addEventListener("click", e => {
-  const r = e.target.closest("[data-month]"); if (!r) return;
-  month = r.dataset.month; pendingDelete = null; render();
-  window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
 $("msg").addEventListener("click", async e => {

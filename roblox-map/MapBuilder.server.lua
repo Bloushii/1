@@ -22,6 +22,11 @@
 	  • نقاط Rarity، ولوحة "أندر المزارعين" تجمع كل السيرفرات
 	  • الحصاد الأسطوري ينعلن بكل السيرفرات
 
+	الطقس (حدث كل 6 دقايق، ينعلن قبله بـ 30 ثانية):
+	  • عاصفة رعد ⚡: البرق يضرب الزرع ويخليه Electric (البيع ×5)
+	  • القمر الدموي 🌕: اللي ينزرع وقتها ياخذ فرصتين بالندرة
+	  • المطر الذهبي ✨: الزرع يكبر بسرعة الضعف، واللي يخلص وقتها يصير Golden (البيع ×3)
+
 	طريقة الاستخدام: حط هذا السكربت داخل ServerScriptService كـ Script (مو LocalScript)
 	عشان الحفظ يشتغل في Studio: Experience Settings ← Security ← Enable Studio Access to API Services
 ]]
@@ -72,6 +77,17 @@ local RARITIES = {
 	{ name = "Legendary", chance = 0.9, mult = 15, points = 100, color = Color3.fromRGB(255, 200, 40) },
 	{ name = "Mythic", chance = 0.1, mult = 50, points = 500, color = Color3.fromRGB(255, 60, 120) },
 }
+
+-- الطفرات من الطقس: mult = يضرب سعر البيع (فوق الندرة)، ونقاط Rarity تتضاعف
+local MUTATIONS = {
+	Electric = { mult = 5, icon = "⚡", color = Color3.fromRGB(90, 230, 255) },
+	Golden = { mult = 3, icon = "✨", color = Color3.fromRGB(255, 210, 60) },
+}
+
+local WEATHER_EVERY = 360        -- كل كم ثانية يجي حدث طقس (6 دقايق)
+local WEATHER_LENGTH = 150       -- مدة الحدث بالثواني
+local LIGHTNING_EVERY = 6        -- ضربة برق كل كم ثانية وقت العاصفة
+local LIGHTNING_CROP_CHANCE = 0.4 -- احتمال البرق يضرب زرع (والباقي يضرب الأرض)
 
 local RESTOCK_EVERY = 300   -- تجديد متجر البذور بالثواني (5 دقايق)
 local STARTER_SEEDS = 3     -- جزر مجاني للاعب الجديد
@@ -505,6 +521,7 @@ end
 
 -- ===== المزرعة =====
 local farmRng = Random.new()
+local currentWeather = nil -- اسم الحدث الشغال حالياً (أو nil)
 local seedById = {}
 for _, seed in ipairs(SEEDS) do
 	seed.name = seed.name or seed.id
@@ -522,7 +539,7 @@ local function formatTime(seconds)
 	return string.format("%d:%02d", m, s)
 end
 
-local function rollRarity()
+local function rollOnce()
 	local roll = farmRng:NextNumber(0, 100)
 	local total = 0
 	for index, rarity in ipairs(RARITIES) do
@@ -532,6 +549,15 @@ local function rollRarity()
 		end
 	end
 	return 1
+end
+
+-- luck = كم مرة نرمي وناخذ الأحسن
+local function rollRarity(luck)
+	local best = 1
+	for _ = 1, luck or 1 do
+		best = math.max(best, rollOnce())
+	end
+	return best
 end
 
 -- لوحة كبيرة بحجم بالـ studs (تكبر وتصغر مع المسافة)
@@ -625,6 +651,18 @@ for row, z in ipairs({ -28, -72 }) do
 	end
 end
 
+local function cropTitle(data)
+	local tier = data.tier or 1
+	local rarity = RARITIES[tier] or RARITIES[1]
+	local mutation = MUTATIONS[data.mutation]
+	return (mutation and mutation.icon .. " " .. data.mutation .. " " or "") .. (tier > 1 and rarity.name .. " " or "") .. seedById[data.seed].name
+end
+
+local function growingText(data, remaining)
+	local mutation = MUTATIONS[data.mutation]
+	return (mutation and mutation.icon .. " " or "") .. seedById[data.seed].name .. " " .. formatTime(remaining)
+end
+
 local function clearVisual(plot, t)
 	if plot.visuals[t] then
 		plot.visuals[t]:Destroy()
@@ -675,25 +713,28 @@ local function renderTile(plot, t)
 		-- الندرة مخفية لين تكبر
 		tilePrompt.Enabled = false
 		local label = board(stem, 5, 1.2, stemHeight / 2 + 2)
-		label.Text = seed.name .. " " .. formatTime(remaining)
+		label.Text = growingText(data, remaining)
 		plot.labels[t] = label
 		return
 	end
 
-	local fruit = part({ Name = "Fruit", Shape = Enum.PartType.Ball, Size = Vector3.new(seed.size, seed.size, seed.size), CFrame = base * CFrame.new(0, stemHeight + seed.size / 2 + 0.3, 0), Color = seed.color, Material = seed.neon and Enum.Material.Neon or Enum.Material.SmoothPlastic, CanCollide = false, Parent = model })
-	if tier >= 3 then
+	local mutation = MUTATIONS[data.mutation]
+	local fruitColor = data.mutation == "Golden" and GOLD or seed.color
+	local fruit = part({ Name = "Fruit", Shape = Enum.PartType.Ball, Size = Vector3.new(seed.size, seed.size, seed.size), CFrame = base * CFrame.new(0, stemHeight + seed.size / 2 + 0.3, 0), Color = fruitColor, Material = (seed.neon or mutation) and Enum.Material.Neon or Enum.Material.SmoothPlastic, CanCollide = false, Parent = model })
+	local glowColor = mutation and mutation.color or rarity.color
+	if tier >= 3 or mutation then
 		local light = Instance.new("PointLight")
-		light.Color = rarity.color
+		light.Color = glowColor
 		light.Range = 6 + tier * 2
 		light.Brightness = 2
 		light.Parent = fruit
 	end
-	if tier >= 5 then
+	if tier >= 5 or mutation then
 		local sparkles = Instance.new("Sparkles")
-		sparkles.SparkleColor = rarity.color
+		sparkles.SparkleColor = glowColor
 		sparkles.Parent = fruit
 	end
-	local cropName = (tier > 1 and rarity.name .. " " or "") .. seed.name
+	local cropName = cropTitle(data)
 	local label = board(stem, 7, 1.4, stemHeight / 2 + seed.size + 1.5)
 	label.Text = cropName
 	label.TextColor3 = rarity.color
@@ -750,18 +791,19 @@ local function harvest(player, session, plot, t, data)
 	local seed = seedById[data.seed]
 	local tier = data.tier or 1
 	local rarity = RARITIES[tier] or RARITIES[1]
-	local earned = math.floor(seed.sell * rarity.mult)
-	local points = rarity.points * seed.points
+	local mutation = MUTATIONS[data.mutation]
+	local earned = math.floor(seed.sell * rarity.mult * (mutation and mutation.mult or 1))
+	local points = rarity.points * seed.points * (mutation and 2 or 1)
+	local cropName = cropTitle(data)
 	session.farm["t" .. t] = nil
 	player.leaderstats.Coins.Value += earned
 	player.leaderstats.Rarity.Value += points
 	session.bestTier = math.max(session.bestTier or 1, tier)
 	renderTile(plot, t)
 
-	local cropName = (tier > 1 and rarity.name .. " " or "") .. seed.name
-	notify(player, "Harvested " .. cropName .. "! +" .. earned .. " coins" .. (points > 0 and (", +" .. points .. " rarity") or ""), rarity.color)
-	if tier >= 4 then
-		local text = "🌟 " .. player.DisplayName .. " harvested a " .. string.upper(rarity.name) .. " " .. seed.name .. "!"
+	notify(player, "Harvested " .. cropName .. "! +" .. earned .. " coins" .. (points > 0 and (", +" .. points .. " rarity") or ""), mutation and mutation.color or rarity.color)
+	if tier >= 4 or (mutation and tier >= 3) then
+		local text = "🌟 " .. player.DisplayName .. " harvested a " .. string.upper(cropName) .. "!"
 		notifyAll(text, rarity.color, player)
 		if tier >= 5 then
 			-- إعلان بكل السيرفرات
@@ -803,7 +845,11 @@ for _, plot in ipairs(plots) do
 					session.seeds[id] = nil
 					session.selectedSeed = nextSeed(session, id)
 				end
-				session.farm[key] = { seed = id, at = os.time(), tier = rollRarity() }
+				local luck = currentWeather == "BloodMoon" and 2 or 1
+				session.farm[key] = { seed = id, at = os.time(), tier = rollRarity(luck) }
+				if luck > 1 then
+					notify(player, "🌕 Blood Moon luck! This crop rolled rarity twice", RED)
+				end
 				renderTile(plot, t)
 				refreshPrompts(plot)
 			elseif growthStage(data) == 3 then
@@ -958,10 +1004,173 @@ task.spawn(function()
 	end
 end)
 
--- الزرع يكبر كل ثانية + عداد المتجر
+-- ===== الطقس =====
+local WEATHERS = {
+	Thunderstorm = {
+		title = "⚡ THUNDERSTORM", hint = "Lightning makes crops ELECTRIC (x5)!",
+		clock = 17.5, brightness = 0.6, density = 0.55,
+		atmosphere = Color3.fromRGB(120, 130, 150), ambient = Color3.fromRGB(60, 70, 90),
+		rain = Color3.fromRGB(170, 200, 255),
+	},
+	BloodMoon = {
+		title = "🌕 BLOOD MOON", hint = "Crops planted now roll rarity twice!",
+		clock = 0, brightness = 1, density = 0.4,
+		atmosphere = Color3.fromRGB(200, 40, 40), ambient = Color3.fromRGB(130, 30, 30),
+	},
+	GoldenRain = {
+		title = "✨ GOLDEN RAIN", hint = "Crops grow 2x faster and finish GOLDEN (x3)!",
+		clock = 14, brightness = 2.5, density = 0.35,
+		atmosphere = Color3.fromRGB(255, 220, 120), ambient = Color3.fromRGB(140, 120, 60),
+		rain = GOLD,
+	},
+}
+local WEATHER_ORDER = { "Thunderstorm", "BloodMoon", "GoldenRain" }
+
+local defaultLighting = {
+	clock = Lighting.ClockTime, brightness = Lighting.Brightness,
+	ambient = Lighting.Ambient, outdoor = Lighting.OutdoorAmbient,
+	density = atmosphere.Density, atmosphere = atmosphere.Color,
+}
+
+local rainCloud = part({ Name = "RainCloud", Size = Vector3.new(380, 1, 260), CFrame = CFrame.new(30, 90, -40), Transparency = 1, CanCollide = false, CanTouch = false, CanQuery = false })
+local rain = Instance.new("ParticleEmitter")
+rain.EmissionDirection = Enum.NormalId.Bottom
+rain.Rate = 800
+rain.Speed = NumberRange.new(70, 90)
+rain.Lifetime = NumberRange.new(1.2, 1.4)
+rain.Size = NumberSequence.new(0.25)
+rain.LightEmission = 0.5
+rain.Enabled = false
+rain.Parent = rainCloud
+
+local weatherBrightness = defaultLighting.brightness
+local function applyWeather(id)
+	local weather = WEATHERS[id]
+	if weather then
+		Lighting.ClockTime = weather.clock
+		Lighting.Ambient = weather.ambient
+		Lighting.OutdoorAmbient = weather.ambient
+		atmosphere.Density = weather.density
+		atmosphere.Color = weather.atmosphere
+		weatherBrightness = weather.brightness
+		rain.Enabled = weather.rain ~= nil
+		if weather.rain then
+			rain.Color = ColorSequence.new(weather.rain)
+		end
+	else
+		Lighting.ClockTime = defaultLighting.clock
+		Lighting.Ambient = defaultLighting.ambient
+		Lighting.OutdoorAmbient = defaultLighting.outdoor
+		atmosphere.Density = defaultLighting.density
+		atmosphere.Color = defaultLighting.atmosphere
+		weatherBrightness = defaultLighting.brightness
+		rain.Enabled = false
+	end
+	Lighting.Brightness = weatherBrightness
+end
+
+-- شريط فوق الشاشة يبين الطقس والوقت الباقي
+local weatherBarText = nil
+local function updateWeatherBar(player)
+	local playerGui = player:FindFirstChild("PlayerGui")
+	if not playerGui then return end
+	local screen = playerGui:FindFirstChild("WeatherBar")
+	if not screen then
+		screen = Instance.new("ScreenGui")
+		screen.Name = "WeatherBar"
+		screen.ResetOnSpawn = false
+		local label = Instance.new("TextLabel")
+		label.Name = "Label"
+		label.AnchorPoint = Vector2.new(0.5, 0)
+		label.Position = UDim2.new(0.5, 0, 0, 10)
+		label.Size = UDim2.new(0.5, 0, 0, 34)
+		label.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+		label.BackgroundTransparency = 0.25
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.TextScaled = true
+		label.Font = Enum.Font.GothamBold
+		Instance.new("UICorner").Parent = label
+		label.Parent = screen
+		screen.Parent = playerGui
+	end
+	screen.Label.Visible = weatherBarText ~= nil
+	screen.Label.Text = weatherBarText or ""
+end
+
+local function lightningStrike(position)
+	local bolt = part({ Name = "Lightning", Size = Vector3.new(0.8, 80, 0.8), CFrame = CFrame.new(position + Vector3.new(0, 40, 0)), Color = Color3.fromRGB(200, 240, 255), Material = Enum.Material.Neon, CanCollide = false, CanTouch = false, CanQuery = false })
+	Debris:AddItem(bolt, 0.25)
+	Lighting.Brightness = 6
+	task.delay(0.12, function()
+		Lighting.Brightness = weatherBrightness
+	end)
+end
+
+local function strikeFarm()
+	-- نجمع كل الزرع اللي ما فيه طفرة
+	local candidates = {}
+	for _, plot in ipairs(plots) do
+		local session = plot.owner and sessions[plot.owner]
+		if session then
+			for t = 1, #plot.tiles do
+				local data = session.farm["t" .. t]
+				if data and seedById[data.seed] and not data.mutation then
+					table.insert(candidates, { plot = plot, t = t, data = data })
+				end
+			end
+		end
+	end
+	if #candidates > 0 and farmRng:NextNumber() < LIGHTNING_CROP_CHANCE then
+		local hit = candidates[farmRng:NextInteger(1, #candidates)]
+		hit.data.mutation = "Electric"
+		lightningStrike(hit.plot.tiles[hit.t].Position)
+		renderTile(hit.plot, hit.t)
+		notify(hit.plot.owner, "⚡ Lightning hit your " .. seedById[hit.data.seed].name .. "! It's ELECTRIC now (x5)", MUTATIONS.Electric.color)
+	else
+		lightningStrike(Vector3.new(farmRng:NextNumber(85, 205), 0, farmRng:NextNumber(-90, 10)))
+	end
+end
+
+task.spawn(function()
+	while true do
+		task.wait(WEATHER_EVERY - 30)
+		local id = WEATHER_ORDER[farmRng:NextInteger(1, #WEATHER_ORDER)]
+		local weather = WEATHERS[id]
+		local startsAt = os.time() + 30
+		notifyAll("⚠️ " .. weather.title .. " in 30 seconds! " .. weather.hint, GOLD)
+		while os.time() < startsAt do
+			weatherBarText = weather.title .. " coming in " .. formatTime(startsAt - os.time())
+			task.wait(1)
+		end
+
+		currentWeather = id
+		applyWeather(id)
+		notifyAll(weather.title .. " has started! " .. weather.hint, GOLD)
+		local endsAt = os.time() + WEATHER_LENGTH
+		local nextStrike = os.time() + LIGHTNING_EVERY
+		while os.time() < endsAt do
+			weatherBarText = weather.title .. " " .. formatTime(endsAt - os.time()) .. " - " .. weather.hint
+			if id == "Thunderstorm" and os.time() >= nextStrike then
+				nextStrike = os.time() + LIGHTNING_EVERY
+				strikeFarm()
+			end
+			task.wait(1)
+		end
+
+		currentWeather = nil
+		weatherBarText = nil
+		applyWeather(nil)
+		notifyAll("The " .. weather.title .. " is over. Next weather soon!", GREEN)
+	end
+end)
+
+-- الزرع يكبر كل ثانية + عداد المتجر + شريط الطقس
 task.spawn(function()
 	while true do
 		task.wait(1)
+		for _, player in ipairs(Players:GetPlayers()) do
+			updateWeatherBar(player)
+		end
 		for _, plot in ipairs(plots) do
 			local session = plot.owner and sessions[plot.owner]
 			if session then
@@ -969,10 +1178,20 @@ task.spawn(function()
 					local data = session.farm["t" .. t]
 					if data and seedById[data.seed] then
 						local stage, remaining = growthStage(data)
-						if stage ~= plot.stages[t] then
+						if currentWeather == "GoldenRain" and stage < 3 then
+							-- ثانية زيادة نمو = سرعة الضعف
+							data.at -= 1
+							stage, remaining = growthStage(data)
+						end
+						local previous = plot.stages[t]
+						if stage ~= previous then
+							if stage == 3 and previous and previous < 3 and currentWeather == "GoldenRain" and not data.mutation then
+								data.mutation = "Golden"
+								notify(plot.owner, "✨ Your " .. seedById[data.seed].name .. " finished in the Golden Rain: GOLDEN (x3)!", GOLD)
+							end
 							renderTile(plot, t)
 						elseif plot.labels[t] then
-							plot.labels[t].Text = seedById[data.seed].name .. " " .. formatTime(remaining)
+							plot.labels[t].Text = growingText(data, remaining)
 						end
 					end
 				end

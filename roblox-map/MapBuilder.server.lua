@@ -261,25 +261,27 @@ while planted < 70 do
 end
 
 -- ===== الكوينز =====
+-- الجمع يصير بالمسافة (مو Touched) عشان الكوينز اللي تلف ما تفوت اللاعب
+local COIN_PICKUP_RANGE = 4.5
 local coins = {}
 local function makeCoin(pos, value, respawnTime)
-	local coin = part({ Name = "Coin", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.4, 3, 3), CFrame = CFrame.new(pos), Color = GOLD, Material = Enum.Material.Neon, CanCollide = false })
-	table.insert(coins, coin)
-	coin.Touched:Connect(function(hit)
-		if coin.Transparency > 0 then return end
-		local player = getPlayer(hit)
-		if not player or not player:FindFirstChild("leaderstats") then return end
-		coin.Transparency = 1
-		player.leaderstats.Coins.Value += value
-		if respawnTime then
-			task.delay(respawnTime, function()
-				coin.Transparency = 0
-			end)
-		else
-			coin:Destroy()
-		end
-	end)
+	local coin = part({ Name = "Coin", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.4, 3, 3), CFrame = CFrame.new(pos), Color = GOLD, Material = Enum.Material.Neon, CanCollide = false, CanTouch = false })
+	table.insert(coins, { part = coin, value = value, respawn = respawnTime, active = true })
 	return coin
+end
+
+local function collectCoin(entry, player)
+	entry.active = false
+	entry.part.Transparency = 1
+	player.leaderstats.Coins.Value += entry.value
+	if entry.respawn then
+		task.delay(entry.respawn, function()
+			entry.active = true
+			entry.part.Transparency = 0
+		end)
+	else
+		entry.part:Destroy()
+	end
 end
 
 -- كوينز على الشوارع
@@ -1042,8 +1044,9 @@ local function onPlayerAdded(player)
 	if not player.Parent then return end
 	session.loaded = loaded
 	if data then
-		coinsValue.Value = data.coins or 0
-		winsValue.Value = data.wins or 0
+		-- += عشان ما تضيع الكوينز اللي جمعها وهو ينطر التحميل
+		coinsValue.Value += data.coins or 0
+		winsValue.Value += data.wins or 0
 		stageValue.Value = math.clamp(data.stage or 0, 0, STAGES)
 		session.owned = data.owned or {}
 		session.foundSecret = data.foundSecret or false
@@ -1171,17 +1174,33 @@ task.spawn(function()
 	end
 end)
 
--- لف الكوينز
+-- لف الكوينز + جمعها لما اللاعب يقرب منها
 task.spawn(function()
 	local angle = 0
 	while true do
 		angle += 0.15
+		local collectors = {}
+		for _, player in ipairs(Players:GetPlayers()) do
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if root and humanoid and humanoid.Health > 0 and player:FindFirstChild("leaderstats") then
+				table.insert(collectors, { player = player, position = root.Position })
+			end
+		end
 		for index = #coins, 1, -1 do
-			local coin = coins[index]
-			if coin.Parent then
-				coin.CFrame = CFrame.new(coin.Position) * CFrame.Angles(0, angle, 0)
-			else
+			local entry = coins[index]
+			local coin = entry.part
+			if not coin.Parent then
 				table.remove(coins, index)
+			elseif entry.active then
+				coin.CFrame = CFrame.new(coin.Position) * CFrame.Angles(0, angle, 0)
+				for _, collector in ipairs(collectors) do
+					if (collector.position - coin.Position).Magnitude < COIN_PICKUP_RANGE then
+						collectCoin(entry, collector.player)
+						break
+					end
+				end
 			end
 		end
 		task.wait(0.05)

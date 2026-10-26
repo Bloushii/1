@@ -15,6 +15,13 @@
 	  • كنز سري تحت البحيرة (مرة وحدة لكل لاعب)
 	  • الفوز بالأوبي: كوينز + Wins، وإعلان للسيرفر كله، وترجع تعيده
 
+	المزرعة والندرة:
+	  • كل لاعب ياخذ أرض فيها 9 مربعات، يزرع ويحصد، والزرع يكبر حتى لو طلع من اللعبة
+	  • كل نبتة لها ندرة مخفية (Common لين Mythic) تنكشف لما تكبر، والنادرة تلمع وتنباع بأضعاف
+	  • متجر بذور مشترك بالسيرفر: المخزون محدود ويتجدد كل 5 دقايق، والبذور النادرة تطلع أحياناً بس
+	  • نقاط Rarity، ولوحة "أندر المزارعين" تجمع كل السيرفرات
+	  • الحصاد الأسطوري ينعلن بكل السيرفرات
+
 	طريقة الاستخدام: حط هذا السكربت داخل ServerScriptService كـ Script (مو LocalScript)
 	عشان الحفظ يشتغل في Studio: Experience Settings ← Security ← Enable Studio Access to API Services
 ]]
@@ -23,6 +30,7 @@ local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local DataStoreService = game:GetService("DataStoreService")
 local Debris = game:GetService("Debris")
+local MessagingService = game:GetService("MessagingService")
 local Terrain = workspace.Terrain
 
 -- ===== إعدادات تقدر تغيرها =====
@@ -43,6 +51,30 @@ local SHOP = {
 	{ id = "Jump", name = "Super Jump", price = 120, x = 40, color = Color3.fromRGB(90, 220, 120) },
 	{ id = "Trail", name = "Rainbow Trail", price = 200, x = 55, color = Color3.fromRGB(190, 110, 255) },
 }
+
+-- البذور: grow = وقت النمو بالثواني، sell = سعر البيع (Common)، points = يضرب نقاط الندرة
+-- maxStock = أكثر عدد يطلع بالمتجر، chance = احتمال تطلع بكل تجديد (بدون maxStock = دايم موجودة)
+local SEEDS = {
+	{ id = "Carrot", price = 10, grow = 60, sell = 18, points = 1, size = 1.5, color = Color3.fromRGB(255, 140, 40) },
+	{ id = "Strawberry", price = 30, grow = 300, sell = 60, points = 2, size = 1.8, color = Color3.fromRGB(230, 40, 60), maxStock = 5, chance = 0.9 },
+	{ id = "Pumpkin", price = 100, grow = 1200, sell = 230, points = 4, size = 3, color = Color3.fromRGB(255, 120, 20), maxStock = 3, chance = 0.6 },
+	{ id = "Watermelon", price = 250, grow = 3600, sell = 620, points = 8, size = 3.4, color = Color3.fromRGB(60, 170, 60), maxStock = 2, chance = 0.4 },
+	{ id = "Moonflower", price = 800, grow = 10800, sell = 2200, points = 20, size = 2.6, color = Color3.fromRGB(150, 180, 255), maxStock = 1, chance = 0.2, neon = true, announce = true },
+	{ id = "DragonFruit", name = "Dragon Fruit", price = 2500, grow = 28800, sell = 8000, points = 50, size = 3, color = Color3.fromRGB(255, 50, 170), maxStock = 1, chance = 0.07, neon = true, announce = true },
+}
+
+-- الندرة: chance بالمية، mult = يضرب سعر البيع، points = نقاط Rarity (× points حق البذرة)
+local RARITIES = {
+	{ name = "Common", chance = 60, mult = 1, points = 0, color = Color3.fromRGB(220, 220, 220) },
+	{ name = "Uncommon", chance = 25, mult = 1.5, points = 1, color = Color3.fromRGB(90, 220, 120) },
+	{ name = "Rare", chance = 10, mult = 3, points = 5, color = Color3.fromRGB(80, 170, 255) },
+	{ name = "Epic", chance = 4, mult = 6, points = 25, color = Color3.fromRGB(190, 110, 255) },
+	{ name = "Legendary", chance = 0.9, mult = 15, points = 100, color = Color3.fromRGB(255, 200, 40) },
+	{ name = "Mythic", chance = 0.1, mult = 50, points = 500, color = Color3.fromRGB(255, 60, 120) },
+}
+
+local RESTOCK_EVERY = 300   -- تجديد متجر البذور بالثواني (5 دقايق)
+local STARTER_SEEDS = 3     -- جزر مجاني للاعب الجديد
 
 local GOLD = Color3.fromRGB(255, 210, 60)
 local GREEN = Color3.fromRGB(120, 255, 120)
@@ -165,7 +197,7 @@ local spawn = part({
 	Material = Enum.Material.SmoothPlastic,
 }, "SpawnLocation")
 spawn.Duration = 0
-sign(spawn, "Collect coins, shop, beat the obby!", Color3.fromRGB(255, 255, 120))
+sign(spawn, "Obby, farm & rare crops! Farm is east →", Color3.fromRGB(255, 255, 120))
 
 -- ===== الشوارع =====
 local roadColor = Color3.fromRGB(110, 110, 115)
@@ -221,7 +253,8 @@ while planted < 70 do
 	local inTown = math.abs(x) < 75 and z > -110 and z < 30
 	local inObby = math.abs(x) < 35 and z > 30
 	local inLake = math.abs(x + 110) < 45 and math.abs(z + 100) < 50
-	if not (inTown or inObby or inLake) then
+	local inFarm = x > 75 and x < 215 and z > -95 and z < 20
+	if not (inTown or inObby or inLake or inFarm) then
 		tree(Vector3.new(x, 0, z))
 		planted += 1
 	end
@@ -349,6 +382,12 @@ if not storeOk then
 	warn("DataStore not available (publish the game and enable API access). Progress won't be saved.")
 	store = nil
 end
+local rarityStoreOk, rarityStore = pcall(function()
+	return DataStoreService:GetOrderedDataStore("RarityPoints_v1")
+end)
+if not rarityStoreOk then
+	rarityStore = nil
+end
 
 local sessions = {}
 
@@ -377,12 +416,22 @@ local function saveData(player)
 		foundSecret = session.foundSecret,
 		lastDay = session.lastDay,
 		streak = session.streak,
+		seeds = session.seeds,
+		farm = session.farm,
+		selectedSeed = session.selectedSeed,
+		rarity = leaderstats.Rarity.Value,
+		bestTier = session.bestTier,
 	}
 	local ok, err = pcall(function()
 		store:SetAsync("u_" .. player.UserId, payload)
 	end)
 	if not ok then
 		warn("Failed to save data for " .. player.Name .. ": " .. tostring(err))
+	end
+	if rarityStore then
+		pcall(function()
+			rarityStore:SetAsync("u_" .. player.UserId, leaderstats.Rarity.Value)
+		end)
 	end
 end
 
@@ -452,6 +501,489 @@ for item, pad in pairs(shopPads) do
 	end)
 end
 
+-- ===== المزرعة =====
+local farmRng = Random.new()
+local seedById = {}
+for _, seed in ipairs(SEEDS) do
+	seed.name = seed.name or seed.id
+	seedById[seed.id] = seed
+end
+
+local function formatTime(seconds)
+	seconds = math.max(0, math.floor(seconds))
+	local h = math.floor(seconds / 3600)
+	local m = math.floor(seconds % 3600 / 60)
+	local s = seconds % 60
+	if h > 0 then
+		return string.format("%d:%02d:%02d", h, m, s)
+	end
+	return string.format("%d:%02d", m, s)
+end
+
+local function rollRarity()
+	local roll = farmRng:NextNumber(0, 100)
+	local total = 0
+	for index, rarity in ipairs(RARITIES) do
+		total += rarity.chance
+		if roll <= total then
+			return index
+		end
+	end
+	return 1
+end
+
+-- لوحة كبيرة بحجم بالـ studs (تكبر وتصغر مع المسافة)
+local function board(adornee, width, height, offsetY)
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.new(width, 0, height, 0)
+	gui.StudsOffset = Vector3.new(0, offsetY, 0)
+	gui.MaxDistance = 120
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+	label.BackgroundTransparency = 0.3
+	label.TextScaled = true
+	label.RichText = true
+	label.Font = Enum.Font.GothamBold
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.Parent = gui
+	gui.Adornee = adornee
+	gui.Parent = adornee
+	return label
+end
+
+local function prompt(parent, action)
+	local p = Instance.new("ProximityPrompt")
+	p.ActionText = action
+	p.HoldDuration = 0
+	p.MaxActivationDistance = 9
+	p.RequiresLineOfSight = false
+	p.Enabled = false
+	p.Parent = parent
+	return p
+end
+
+local function nextSeed(session, current)
+	local start = 0
+	for index, seed in ipairs(SEEDS) do
+		if seed.id == current then
+			start = index
+		end
+	end
+	for offset = 1, #SEEDS do
+		local seed = SEEDS[(start + offset - 1) % #SEEDS + 1]
+		if (session.seeds[seed.id] or 0) > 0 then
+			return seed.id
+		end
+	end
+	return nil
+end
+
+local function seedText(session)
+	local id = session.selectedSeed
+	local count = id and session.seeds[id] or 0
+	if count <= 0 then
+		return "No seeds - visit the seed shop"
+	end
+	return seedById[id].name .. " seed x" .. count
+end
+
+local function growthStage(data)
+	local seed = seedById[data.seed]
+	local elapsed = os.time() - data.at
+	if elapsed >= seed.grow then
+		return 3, 0
+	end
+	return (elapsed < seed.grow / 2) and 1 or 2, seed.grow - elapsed
+end
+
+-- الشارع والأراضي
+part({ Name = "FarmRoad", Size = Vector3.new(140, 0.4, 10), CFrame = CFrame.new(140, 0.2, -50), Color = roadColor, Material = Enum.Material.Cobblestone })
+
+local plots = {}
+for row, z in ipairs({ -28, -72 }) do
+	for _, x in ipairs({ 100, 130, 160, 190 }) do
+		local center = Vector3.new(x, 0, z)
+		local plot = { tiles = {}, prompts = {}, visuals = {}, labels = {}, stages = {} }
+		plot.base = part({ Name = "FarmPlot", Size = Vector3.new(26, 0.6, 26), CFrame = CFrame.new(center + Vector3.new(0, 0.3, 0)), Color = Color3.fromRGB(110, 160, 70), Material = Enum.Material.Grass })
+		plot.ownerLabel = board(plot.base, 12, 2, 12)
+		plot.ownerLabel.Text = "Free plot"
+		for dx = -7, 7, 7 do
+			for dz = -7, 7, 7 do
+				local tile = part({ Name = "Soil", Size = Vector3.new(6, 0.4, 6), CFrame = CFrame.new(center + Vector3.new(dx, 0.8, dz)), Color = Color3.fromRGB(95, 65, 40), Material = Enum.Material.Ground })
+				table.insert(plot.tiles, tile)
+				table.insert(plot.prompts, prompt(tile, "Plant"))
+			end
+		end
+		-- كيس البذور على جهة الشارع
+		local side = row == 1 and -1 or 1
+		plot.bag = part({ Name = "SeedBag", Size = Vector3.new(2, 3, 2), CFrame = CFrame.new(center + Vector3.new(0, 2, side * 11.5)), Color = Color3.fromRGB(200, 170, 110), Material = Enum.Material.Fabric })
+		plot.bagPrompt = prompt(plot.bag, "Switch seed")
+		table.insert(plots, plot)
+	end
+end
+
+local function clearVisual(plot, t)
+	if plot.visuals[t] then
+		plot.visuals[t]:Destroy()
+	end
+	plot.visuals[t] = nil
+	plot.labels[t] = nil
+	plot.stages[t] = nil
+end
+
+local function renderTile(plot, t)
+	clearVisual(plot, t)
+	local session = plot.owner and sessions[plot.owner]
+	local tilePrompt = plot.prompts[t]
+	if not session then
+		tilePrompt.Enabled = false
+		return
+	end
+	local key = "t" .. t
+	local data = session.farm[key]
+	if data and not seedById[data.seed] then
+		session.farm[key] = nil
+		data = nil
+	end
+	if not data then
+		tilePrompt.ActionText = "Plant"
+		tilePrompt.ObjectText = seedText(session)
+		tilePrompt.Enabled = true
+		return
+	end
+
+	local seed = seedById[data.seed]
+	local tier = data.tier or 1
+	local rarity = RARITIES[tier] or RARITIES[1]
+	local stage, remaining = growthStage(data)
+	local base = plot.tiles[t].CFrame * CFrame.new(0, 0.2, 0)
+	local model = Instance.new("Model")
+	model.Name = "Crop"
+	model.Parent = map
+	plot.visuals[t] = model
+	plot.stages[t] = stage
+
+	local stemHeight = stage == 1 and 1 or stage == 2 and 2.5 or 3.5
+	local stem = part({ Name = "Stem", Size = Vector3.new(0.5, stemHeight, 0.5), CFrame = base * CFrame.new(0, stemHeight / 2, 0), Color = Color3.fromRGB(60, 150, 50), Material = Enum.Material.Grass, CanCollide = false, Parent = model })
+	local leafSize = stage == 1 and 1.2 or 2.2
+	part({ Name = "Leaves", Shape = Enum.PartType.Ball, Size = Vector3.new(leafSize, leafSize, leafSize), CFrame = base * CFrame.new(0, stemHeight, 0), Color = Color3.fromRGB(70, 180, 60), Material = Enum.Material.Grass, CanCollide = false, Parent = model })
+
+	if stage < 3 then
+		-- الندرة مخفية لين تكبر
+		tilePrompt.Enabled = false
+		local label = board(stem, 5, 1.2, stemHeight / 2 + 2)
+		label.Text = seed.name .. " " .. formatTime(remaining)
+		plot.labels[t] = label
+		return
+	end
+
+	local fruit = part({ Name = "Fruit", Shape = Enum.PartType.Ball, Size = Vector3.new(seed.size, seed.size, seed.size), CFrame = base * CFrame.new(0, stemHeight + seed.size / 2 + 0.3, 0), Color = seed.color, Material = seed.neon and Enum.Material.Neon or Enum.Material.SmoothPlastic, CanCollide = false, Parent = model })
+	if tier >= 3 then
+		local light = Instance.new("PointLight")
+		light.Color = rarity.color
+		light.Range = 6 + tier * 2
+		light.Brightness = 2
+		light.Parent = fruit
+	end
+	if tier >= 5 then
+		local sparkles = Instance.new("Sparkles")
+		sparkles.SparkleColor = rarity.color
+		sparkles.Parent = fruit
+	end
+	local cropName = (tier > 1 and rarity.name .. " " or "") .. seed.name
+	local label = board(stem, 7, 1.4, stemHeight / 2 + seed.size + 1.5)
+	label.Text = cropName
+	label.TextColor3 = rarity.color
+	tilePrompt.ActionText = "Harvest"
+	tilePrompt.ObjectText = cropName
+	tilePrompt.Enabled = true
+end
+
+local function refreshPrompts(plot)
+	local session = plot.owner and sessions[plot.owner]
+	if not session then return end
+	local text = seedText(session)
+	plot.bagPrompt.ObjectText = text
+	for t, tilePrompt in ipairs(plot.prompts) do
+		if not session.farm["t" .. t] then
+			tilePrompt.ObjectText = text
+		end
+	end
+end
+
+local function assignPlot(player)
+	local session = sessions[player]
+	for _, plot in ipairs(plots) do
+		if not plot.owner then
+			plot.owner = player
+			session.plot = plot
+			plot.ownerLabel.Text = player.DisplayName .. "'s Farm"
+			plot.bagPrompt.Enabled = true
+			for t = 1, #plot.tiles do
+				renderTile(plot, t)
+			end
+			refreshPrompts(plot)
+			return
+		end
+	end
+	notify(player, "All farm plots are taken in this server", RED)
+end
+
+local function releasePlot(player)
+	local session = sessions[player]
+	local plot = session and session.plot
+	if not plot then return end
+	plot.owner = nil
+	session.plot = nil
+	for t = 1, #plot.tiles do
+		clearVisual(plot, t)
+		plot.prompts[t].Enabled = false
+	end
+	plot.bagPrompt.Enabled = false
+	plot.ownerLabel.Text = "Free plot"
+end
+
+local function harvest(player, session, plot, t, data)
+	local seed = seedById[data.seed]
+	local tier = data.tier or 1
+	local rarity = RARITIES[tier] or RARITIES[1]
+	local earned = math.floor(seed.sell * rarity.mult)
+	local points = rarity.points * seed.points
+	session.farm["t" .. t] = nil
+	player.leaderstats.Coins.Value += earned
+	player.leaderstats.Rarity.Value += points
+	session.bestTier = math.max(session.bestTier or 1, tier)
+	renderTile(plot, t)
+
+	local cropName = (tier > 1 and rarity.name .. " " or "") .. seed.name
+	notify(player, "Harvested " .. cropName .. "! +" .. earned .. " coins" .. (points > 0 and (", +" .. points .. " rarity") or ""), rarity.color)
+	if tier >= 4 then
+		local text = "🌟 " .. player.DisplayName .. " harvested a " .. string.upper(rarity.name) .. " " .. seed.name .. "!"
+		notifyAll(text, rarity.color, player)
+		if tier >= 5 then
+			-- إعلان بكل السيرفرات
+			task.spawn(pcall, function()
+				MessagingService:PublishAsync("RareHarvest", { text = text .. " (other server)", tier = tier, job = game.JobId })
+			end)
+		end
+		saveData(player)
+	end
+end
+
+pcall(function()
+	MessagingService:SubscribeAsync("RareHarvest", function(message)
+		local data = message.Data
+		if type(data) ~= "table" or data.job == game.JobId then return end
+		local rarity = RARITIES[data.tier]
+		notifyAll(tostring(data.text), rarity and rarity.color or GOLD)
+	end)
+end)
+
+for _, plot in ipairs(plots) do
+	for t, tilePrompt in ipairs(plot.prompts) do
+		tilePrompt.Triggered:Connect(function(player)
+			local session = sessions[player]
+			if plot.owner ~= player or not session then
+				notify(player, "This isn't your farm!", RED)
+				return
+			end
+			local key = "t" .. t
+			local data = session.farm[key]
+			if not data then
+				local id = session.selectedSeed
+				if not id or (session.seeds[id] or 0) <= 0 then
+					notify(player, "No seeds! Buy some at the seed shop", RED)
+					return
+				end
+				session.seeds[id] -= 1
+				if session.seeds[id] <= 0 then
+					session.seeds[id] = nil
+					session.selectedSeed = nextSeed(session, id)
+				end
+				session.farm[key] = { seed = id, at = os.time(), tier = rollRarity() }
+				renderTile(plot, t)
+				refreshPrompts(plot)
+			elseif growthStage(data) == 3 then
+				harvest(player, session, plot, t, data)
+			end
+		end)
+	end
+
+	plot.bagPrompt.Triggered:Connect(function(player)
+		local session = sessions[player]
+		if plot.owner ~= player or not session then
+			notify(player, "This isn't your farm!", RED)
+			return
+		end
+		local id = nextSeed(session, session.selectedSeed)
+		if not id then
+			notify(player, "No seeds! Buy some at the seed shop", RED)
+			return
+		end
+		session.selectedSeed = id
+		refreshPrompts(plot)
+		notify(player, "Selected: " .. seedText(session), GREEN)
+	end)
+end
+
+-- متجر البذور (المخزون مشترك بين كل اللي بالسيرفر)
+local stock = {}
+local nextRestock = 0
+local crates = {}
+local shopPost = part({ Name = "SeedShopSign", Size = Vector3.new(1, 6, 1), CFrame = CFrame.new(115, 3, 7), Color = Color3.fromRGB(105, 70, 40), Material = Enum.Material.Wood })
+local shopLabel = board(shopPost, 14, 11, 9)
+for index, seed in ipairs(SEEDS) do
+	local crate = part({ Name = "SeedCrate", Size = Vector3.new(4, 2, 4), CFrame = CFrame.new(100 + (index - 1) * 6, 1, 2), Color = seed.color, Material = seed.neon and Enum.Material.Neon or Enum.Material.Wood })
+	crates[seed.id] = prompt(crate, "Buy")
+end
+
+local function updateShop()
+	local lines = { "🌱 SEED SHOP 🌱" }
+	for _, seed in ipairs(SEEDS) do
+		local count = stock[seed.id] or 0
+		local stockText = count == math.huge and "∞" or (count > 0 and count .. " left" or "SOLD OUT")
+		table.insert(lines, string.format('<font color="#%s">%s</font>  %dc  (%s)', seed.color:ToHex(), seed.name, seed.price, stockText))
+		crates[seed.id].ObjectText = seed.name .. " - " .. seed.price .. "c (" .. stockText .. ")"
+		crates[seed.id].Enabled = count > 0
+	end
+	table.insert(lines, "Restock in " .. formatTime(nextRestock - os.time()))
+	shopLabel.Text = table.concat(lines, "\n")
+end
+
+local function restock()
+	nextRestock = os.time() + RESTOCK_EVERY
+	local rareNews = {}
+	for _, seed in ipairs(SEEDS) do
+		if not seed.maxStock then
+			stock[seed.id] = math.huge
+		elseif farmRng:NextNumber() < seed.chance then
+			stock[seed.id] = farmRng:NextInteger(1, seed.maxStock)
+			if seed.announce then
+				table.insert(rareNews, seed.name)
+			end
+		else
+			stock[seed.id] = 0
+		end
+	end
+	if #rareNews > 0 then
+		notifyAll("🔥 RARE SEEDS IN STOCK: " .. table.concat(rareNews, ", ") .. "! Go fast!", GOLD)
+	end
+	updateShop()
+end
+restock()
+
+for _, seed in ipairs(SEEDS) do
+	crates[seed.id].Triggered:Connect(function(player)
+		local session = sessions[player]
+		if not session then return end
+		local coinsValue = player.leaderstats.Coins
+		if (stock[seed.id] or 0) <= 0 then
+			notify(player, seed.name .. " is sold out! Wait for the restock", RED)
+			return
+		end
+		if coinsValue.Value < seed.price then
+			notify(player, "Need " .. (seed.price - coinsValue.Value) .. " more coins for " .. seed.name, RED)
+			return
+		end
+		coinsValue.Value -= seed.price
+		stock[seed.id] -= 1
+		session.seeds[seed.id] = (session.seeds[seed.id] or 0) + 1
+		if not session.selectedSeed or (session.seeds[session.selectedSeed] or 0) <= 0 then
+			session.selectedSeed = seed.id
+		end
+		if session.plot then
+			refreshPrompts(session.plot)
+		end
+		notify(player, "Bought " .. seed.name .. " seed! (" .. session.seeds[seed.id] .. " in bag)", GREEN)
+		if seed.announce then
+			notifyAll(player.DisplayName .. " grabbed a " .. seed.name .. " seed!", GOLD, player)
+		end
+		updateShop()
+	end)
+end
+
+-- لوحة أندر المزارعين (كل السيرفرات)
+local boardPost = part({ Name = "RarityBoard", Size = Vector3.new(1, 6, 1), CFrame = CFrame.new(165, 3, 7), Color = Color3.fromRGB(105, 70, 40), Material = Enum.Material.Wood })
+local rankLabel = board(boardPost, 12, 12, 9)
+local nameCache = {}
+local function nameOf(userId)
+	if not userId then return "?" end
+	if not nameCache[userId] then
+		local ok, name = pcall(function()
+			return Players:GetNameFromUserIdAsync(userId)
+		end)
+		nameCache[userId] = ok and name or "?"
+	end
+	return nameCache[userId]
+end
+
+local function refreshRanking()
+	local entries = {}
+	local ok = rarityStore and pcall(function()
+		local page = rarityStore:GetSortedAsync(false, 10):GetCurrentPage()
+		for _, entry in ipairs(page) do
+			table.insert(entries, { name = nameOf(tonumber((entry.key:gsub("u_", "")))), value = entry.value })
+		end
+	end)
+	if not ok then
+		-- بدون DataStore: نرتب اللي بالسيرفر بس
+		entries = {}
+		for _, player in ipairs(Players:GetPlayers()) do
+			local leaderstats = player:FindFirstChild("leaderstats")
+			if leaderstats then
+				table.insert(entries, { name = player.DisplayName, value = leaderstats.Rarity.Value })
+			end
+		end
+		table.sort(entries, function(a, b)
+			return a.value > b.value
+		end)
+	end
+	local lines = { "🏆 RAREST FARMERS 🏆" }
+	for rank = 1, math.min(#entries, 10) do
+		table.insert(lines, rank .. ". " .. entries[rank].name .. " - " .. entries[rank].value)
+	end
+	if #entries == 0 then
+		table.insert(lines, "No one yet. Be the first!")
+	end
+	rankLabel.Text = table.concat(lines, "\n")
+end
+
+task.spawn(function()
+	while true do
+		refreshRanking()
+		task.wait(60)
+	end
+end)
+
+-- الزرع يكبر كل ثانية + عداد المتجر
+task.spawn(function()
+	while true do
+		task.wait(1)
+		for _, plot in ipairs(plots) do
+			local session = plot.owner and sessions[plot.owner]
+			if session then
+				for t = 1, #plot.tiles do
+					local data = session.farm["t" .. t]
+					if data and seedById[data.seed] then
+						local stage, remaining = growthStage(data)
+						if stage ~= plot.stages[t] then
+							renderTile(plot, t)
+						elseif plot.labels[t] then
+							plot.labels[t].Text = seedById[data.seed].name .. " " .. formatTime(remaining)
+						end
+					end
+				end
+			end
+		end
+		if os.time() >= nextRestock then
+			restock()
+		else
+			updateShop()
+		end
+	end
+end)
+
 -- ===== منطق اللعبة =====
 for _, kill in ipairs(killParts) do
 	kill.Touched:Connect(function(hit)
@@ -485,9 +1017,13 @@ local function onPlayerAdded(player)
 	local stageValue = stat("Stage")
 	local coinsValue = stat("Coins")
 	local winsValue = stat("Wins")
+	local rarityValue = stat("Rarity")
 	leaderstats.Parent = player
 
-	local session = { owned = {}, foundSecret = false, lastDay = 0, streak = 0, loaded = false }
+	local session = {
+		owned = {}, foundSecret = false, lastDay = 0, streak = 0, loaded = false,
+		seeds = { Carrot = STARTER_SEEDS }, farm = {}, selectedSeed = "Carrot", bestTier = 1,
+	}
 	sessions[player] = session
 
 	-- لما يموت يرجع لآخر نقطة حفظ وصلها
@@ -513,10 +1049,19 @@ local function onPlayerAdded(player)
 		session.foundSecret = data.foundSecret or false
 		session.lastDay = data.lastDay or 0
 		session.streak = data.streak or 0
+		session.seeds = data.seeds or session.seeds
+		session.farm = data.farm or {}
+		session.selectedSeed = data.selectedSeed
+		session.bestTier = data.bestTier or 1
+		rarityValue.Value = data.rarity or 0
+	end
+	if not session.selectedSeed or (session.seeds[session.selectedSeed] or 0) <= 0 then
+		session.selectedSeed = nextSeed(session, nil)
 	end
 	if player.Character then
 		task.spawn(placeCharacter, player.Character)
 	end
+	assignPlot(player)
 
 	-- مكافأة يومية: كل يوم ورا بعض تكبر
 	local today = math.floor(os.time() / 86400)
@@ -548,6 +1093,7 @@ end
 
 Players.PlayerRemoving:Connect(function(player)
 	saveData(player)
+	releasePlot(player)
 	sessions[player] = nil
 end)
 

@@ -36,7 +36,7 @@ local Lighting = game:GetService("Lighting")
 local DataStoreService = game:GetService("DataStoreService")
 local Debris = game:GetService("Debris")
 local MessagingService = game:GetService("MessagingService")
-local MarketplaceService = game:GetService("MarketplaceService")
+local BadgeService = game:GetService("BadgeService")
 local Terrain = workspace.Terrain
 
 -- ===== إعدادات تقدر تغيرها =====
@@ -93,15 +93,16 @@ local LIGHTNING_CROP_CHANCE = 0.4 -- احتمال البرق يضرب زرع (و
 local RESTOCK_EVERY = 300   -- تجديد متجر البذور بالثواني (5 دقايق)
 local STARTER_SEEDS = 3     -- جزر مجاني للاعب الجديد
 
--- ===== أشياء تنباع بـ Robux =====
+-- ===== الأوسمة (Badges) =====
 -- سوّها من create.roblox.com وحط الـ ID مكان الصفر (الشرح في الرد)
-local GAME_PASSES = {
-	DoubleCoins = 0,   -- كل الكوينز ×2 للأبد
-	LuckyFarmer = 0,   -- كل زرعة ترمي الندرة مرة زيادة
-}
-local DEV_PRODUCTS = {
-	SummonStorm = 0,   -- يستدعي عاصفة رعد للسيرفر كله
-	InstantGrow = 0,   -- يكبّر كل زرعه على طول
+local BADGES = {
+	Welcome = 0,         -- أول مرة يدخل اللعبة
+	ObbyMaster = 0,      -- خلص الأوبي
+	FirstHarvest = 0,    -- أول حصاد
+	StormChaser = 0,     -- حصد زرع Electric
+	Legendary = 0,       -- حصد Legendary أو أندر
+	Mythic = 0,          -- حصد Mythic
+	TreasureHunter = 0,  -- لقى الكنز السري
 }
 
 local GOLD = Color3.fromRGB(255, 210, 60)
@@ -206,14 +207,28 @@ end
 
 local sessions = {}
 
--- كل الكوينز اللي يربحها اللاعب تمر من هني (عشان Double Coins)
+-- كل الكوينز اللي يربحها اللاعب تمر من هني
 local function addCoins(player, amount)
-	local session = sessions[player]
-	if session and session.passes.DoubleCoins then
-		amount *= 2
-	end
 	player.leaderstats.Coins.Value += amount
 	return amount
+end
+
+local function awardBadge(player, name)
+	local id = BADGES[name]
+	local session = sessions[player]
+	if not id or id <= 0 or not session or session.badges[name] then return end
+	session.badges[name] = true
+	task.spawn(function()
+		local ok, err = pcall(function()
+			if not BadgeService:UserHasBadgeAsync(player.UserId, id) then
+				BadgeService:AwardBadge(player.UserId, id)
+			end
+		end)
+		if not ok then
+			session.badges[name] = nil
+			warn("Badge " .. name .. " failed: " .. tostring(err))
+		end
+	end)
 end
 
 -- ===== الإضاءة والجو =====
@@ -821,6 +836,16 @@ local function harvest(player, session, plot, t, data)
 	earned = addCoins(player, earned)
 	player.leaderstats.Rarity.Value += points
 	session.bestTier = math.max(session.bestTier or 1, tier)
+	awardBadge(player, "FirstHarvest")
+	if data.mutation == "Electric" then
+		awardBadge(player, "StormChaser")
+	end
+	if tier >= 5 then
+		awardBadge(player, "Legendary")
+	end
+	if tier >= 6 then
+		awardBadge(player, "Mythic")
+	end
 	renderTile(plot, t)
 
 	notify(player, "Harvested " .. cropName .. "! +" .. earned .. " coins" .. (points > 0 and (", +" .. points .. " rarity") or ""), mutation and mutation.color or rarity.color)
@@ -867,13 +892,10 @@ for _, plot in ipairs(plots) do
 					session.seeds[id] = nil
 					session.selectedSeed = nextSeed(session, id)
 				end
-				local luck = 1 + (session.passes.LuckyFarmer and 1 or 0)
-				if currentWeather == "BloodMoon" then
-					luck += 1
-				end
+				local luck = currentWeather == "BloodMoon" and 2 or 1
 				session.farm[key] = { seed = id, at = os.time(), tier = rollRarity(luck) }
-				if currentWeather == "BloodMoon" then
-					notify(player, "🌕 Blood Moon luck! This crop rolled rarity " .. luck .. " times", RED)
+				if luck > 1 then
+					notify(player, "🌕 Blood Moon luck! This crop rolled rarity twice", RED)
 				end
 				renderTile(plot, t)
 				refreshPrompts(plot)
@@ -1156,31 +1178,18 @@ local function strikeFarm()
 	end
 end
 
--- summonedWeather: لاعب دفع Robux واستدعى حدث (يبدأ على طول، أو بعد الحدث الشغال)
-local summonedWeather = nil
-local weatherBusy = false
 task.spawn(function()
-	local nextWeatherAt = os.time() + WEATHER_EVERY
 	while true do
-		while os.time() < nextWeatherAt - 30 and not summonedWeather do
+		task.wait(WEATHER_EVERY - 30)
+		local id = WEATHER_ORDER[farmRng:NextInteger(1, #WEATHER_ORDER)]
+		local weather = WEATHERS[id]
+		local startsAt = os.time() + 30
+		notifyAll("⚠️ " .. weather.title .. " in 30 seconds! " .. weather.hint, GOLD)
+		while os.time() < startsAt do
+			weatherBarText = weather.title .. " coming in " .. formatTime(startsAt - os.time())
 			task.wait(1)
 		end
-		weatherBusy = true
-		local summon = summonedWeather
-		summonedWeather = nil
-		local id = summon and summon.id or WEATHER_ORDER[farmRng:NextInteger(1, #WEATHER_ORDER)]
-		local weather = WEATHERS[id]
-		if summon then
-			notifyAll("🌩️ " .. summon.by .. " summoned a " .. weather.title .. "! " .. weather.hint, GOLD)
-		else
-			local startsAt = os.time() + 30
-			notifyAll("⚠️ " .. weather.title .. " in 30 seconds! " .. weather.hint, GOLD)
-			while os.time() < startsAt do
-				weatherBarText = weather.title .. " coming in " .. formatTime(startsAt - os.time())
-				task.wait(1)
-			end
-			notifyAll(weather.title .. " has started! " .. weather.hint, GOLD)
-		end
+		notifyAll(weather.title .. " has started! " .. weather.hint, GOLD)
 
 		currentWeather = id
 		applyWeather(id)
@@ -1197,149 +1206,10 @@ task.spawn(function()
 
 		currentWeather = nil
 		weatherBarText = nil
-		weatherBusy = false
 		applyWeather(nil)
 		notifyAll("The " .. weather.title .. " is over. Next weather soon!", GREEN)
-		nextWeatherAt = os.time() + WEATHER_EVERY
 	end
 end)
-
--- ===== متجر Robux =====
-local function setUp(id)
-	return type(id) == "number" and id > 0
-end
-
-local function growingCrops(session)
-	local list = {}
-	for key, data in pairs(session.farm) do
-		local seed = seedById[data.seed]
-		if seed and os.time() - data.at < seed.grow then
-			table.insert(list, data)
-		end
-	end
-	return list
-end
-
-local productHandlers = {}
-if setUp(DEV_PRODUCTS.SummonStorm) then
-	productHandlers[DEV_PRODUCTS.SummonStorm] = function(player)
-		if weatherBusy or summonedWeather then
-			notify(player, "Storm queued! It starts right after the current weather", GOLD)
-		end
-		summonedWeather = { id = "Thunderstorm", by = player.DisplayName }
-	end
-end
-if setUp(DEV_PRODUCTS.InstantGrow) then
-	productHandlers[DEV_PRODUCTS.InstantGrow] = function(player, session)
-		local crops = growingCrops(session)
-		for _, data in ipairs(crops) do
-			data.at = os.time() - seedById[data.seed].grow
-		end
-		notify(player, "🌱 Instant Grow! " .. #crops .. " crops are ready to harvest", GREEN)
-	end
-end
-
-MarketplaceService.ProcessReceipt = function(receipt)
-	local player = Players:GetPlayerByUserId(receipt.PlayerId)
-	local session = player and sessions[player]
-	local handler = productHandlers[receipt.ProductId]
-	if not session or not handler then
-		return Enum.ProductPurchaseDecision.NotProcessedYet
-	end
-	local ok, err = pcall(handler, player, session)
-	if not ok then
-		warn("Purchase failed: " .. tostring(err))
-		return Enum.ProductPurchaseDecision.NotProcessedYet
-	end
-	saveData(player)
-	return Enum.ProductPurchaseDecision.PurchaseGranted
-end
-
-local function grantPass(player, name)
-	local session = sessions[player]
-	if not session or session.passes[name] then return end
-	session.passes[name] = true
-	if name == "DoubleCoins" then
-		notify(player, "💰 Double Coins active! All coins x2", GOLD)
-	elseif name == "LuckyFarmer" then
-		notify(player, "🍀 Lucky Farmer active! Better rarity on every crop", GREEN)
-	end
-end
-
-local function checkPasses(player)
-	for name, id in pairs(GAME_PASSES) do
-		if setUp(id) then
-			local ok, owns = pcall(function()
-				return MarketplaceService:UserOwnsGamePassAsync(player.UserId, id)
-			end)
-			if ok and owns then
-				grantPass(player, name)
-			end
-		end
-	end
-end
-
-MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
-	if not purchased then return end
-	for name, id in pairs(GAME_PASSES) do
-		if id == passId then
-			grantPass(player, name)
-		end
-	end
-end)
-
-local ROBUX_SHOP = {
-	{ kind = "pass", key = "DoubleCoins", title = "💰 Double Coins", x = -20, color = GOLD },
-	{ kind = "pass", key = "LuckyFarmer", title = "🍀 Lucky Farmer", x = -32, color = Color3.fromRGB(90, 220, 120) },
-	{ kind = "product", key = "SummonStorm", title = "⚡ Summon Storm", x = -44, color = MUTATIONS.Electric.color },
-	{ kind = "product", key = "InstantGrow", title = "🌱 Instant Grow", x = -56, color = Color3.fromRGB(150, 230, 90) },
-}
-
-for _, item in ipairs(ROBUX_SHOP) do
-	local id = item.kind == "pass" and GAME_PASSES[item.key] or DEV_PRODUCTS[item.key]
-	local kiosk = part({ Name = "Robux_" .. item.key, Size = Vector3.new(5, 4, 3), CFrame = CFrame.new(item.x, 2, 14), Color = item.color, Material = Enum.Material.Neon })
-	local label = board(kiosk, 8, 2, 4)
-	label.Text = item.title
-	label.TextColor3 = item.color
-	local buy = prompt(kiosk, "Buy")
-	buy.ObjectText = item.title
-	buy.Enabled = true
-
-	-- نجيب السعر من روبلوكس ونكتبه على اللوحة
-	if setUp(id) then
-		task.spawn(function()
-			local ok, info = pcall(function()
-				return MarketplaceService:GetProductInfo(id, item.kind == "pass" and Enum.InfoType.GamePass or Enum.InfoType.Product)
-			end)
-			if ok and info and info.PriceInRobux then
-				label.Text = item.title .. "  R$" .. info.PriceInRobux
-			end
-		end)
-	end
-
-	buy.Triggered:Connect(function(player)
-		local session = sessions[player]
-		if not session then return end
-		if not setUp(id) then
-			notify(player, "Coming soon!", GOLD)
-			warn("Set the ID for " .. item.key .. " at the top of the script")
-			return
-		end
-		if item.kind == "pass" then
-			if session.passes[item.key] then
-				notify(player, "You already own " .. item.title, GREEN)
-				return
-			end
-			MarketplaceService:PromptGamePassPurchase(player, id)
-		else
-			if item.key == "InstantGrow" and #growingCrops(session) == 0 then
-				notify(player, "Plant some seeds first, then use Instant Grow", RED)
-				return
-			end
-			MarketplaceService:PromptProductPurchase(player, id)
-		end
-	end)
-end
 
 -- الزرع يكبر كل ثانية + عداد المتجر + شريط الطقس
 task.spawn(function()
@@ -1398,6 +1268,7 @@ chest.Touched:Connect(function(hit)
 	if not session or session.foundSecret then return end
 	session.foundSecret = true
 	local gained = addCoins(player, SECRET_REWARD)
+	awardBadge(player, "TreasureHunter")
 	notify(player, "You found the secret treasure! +" .. gained .. " coins", GOLD)
 	notifyAll(player.DisplayName .. " found the secret treasure! Can you?", GOLD, player)
 	saveData(player)
@@ -1421,7 +1292,7 @@ local function onPlayerAdded(player)
 	local session = {
 		owned = {}, foundSecret = false, lastDay = 0, streak = 0, loaded = false,
 		seeds = { Carrot = STARTER_SEEDS }, farm = {}, selectedSeed = "Carrot", bestTier = 1,
-		passes = {},
+		badges = {},
 	}
 	sessions[player] = session
 
@@ -1462,7 +1333,7 @@ local function onPlayerAdded(player)
 		task.spawn(placeCharacter, player.Character)
 	end
 	assignPlot(player)
-	checkPasses(player)
+	awardBadge(player, "Welcome")
 
 	-- مكافأة يومية: كل يوم ورا بعض تكبر
 	local today = math.floor(os.time() / 86400)
@@ -1518,6 +1389,7 @@ local function onFinish(player, humanoid)
 	local leaderstats = player.leaderstats
 	leaderstats.Wins.Value += 1
 	local gained = addCoins(player, FINISH_REWARD)
+	awardBadge(player, "ObbyMaster")
 	local root = humanoid.Parent and humanoid.Parent:FindFirstChild("HumanoidRootPart")
 	if root then
 		local sparkles = Instance.new("Sparkles")

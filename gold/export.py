@@ -10,24 +10,17 @@ note = sys.argv[1] if len(sys.argv) > 1 else ""
 alert = sys.argv[2] if len(sys.argv) > 2 else ""
 x = g.decide(float(sys.argv[3]) if len(sys.argv) > 3 else None)
 
-core_line = f" + اشتر {x['core_buy']:g} قرام للمحفظة الدائمة من الأرباح" if x["core_buy"] else ""
-parts = []
-if x["buy_grams"]: parts.append(f"{x['buy_grams']:g} للتداول")
-if x["hold_grams"]: parts.append(f"{x['hold_grams']:g} للتخزين")
+total = x["buy_grams"] + x["hold_grams"] + x["core_buy"]
 if x["sells"]:
     grams = sum(t["grams"] for t in x["sells"])
     action, text = "sell", f"بيع {grams:g} قرام"
-    detail = "، ".join(f"صفقة #{t['id']} ربح {(x['sell_px'] - t['buy_price']) * t['grams']:+.3f} د.ك" for t in x["sells"])
-elif parts:
-    action, text = "buy", f"اشتر {x['buy_grams'] + x['hold_grams']:g} قرام ({' + '.join(parts)})"
-    detail = f"بحدود {x['buy_px']:.3f} د.ك." + (f" قرامات التداول تبيعها لما سعر بيعك للدار يوصل {x['buy_target']:.3f}." if x["buy_grams"] else "") \
-        + (" قرامات التخزين ما تنباع." if x["hold_grams"] else "")
-elif x["core_buy"]:
-    action, text, detail = "buy", f"اشتر {x['core_buy']:g} قرام للمحفظة الدائمة", f"من الأرباح ({x['pool']:.3f} د.ك) بحدود {x['buy_px']:.3f}، وهذا ما ينباع"
-    core_line = ""
+    detail = f"بسعر بيعك للدار بحدود {x['sell_px']:.3f} د.ك، والربح {sum((x['sell_px'] - t['buy_price']) * t['grams'] for t in x['sells']):+.3f} د.ك"
+    if total:
+        text += f" واشتر {total:g} قرام"
+elif total:
+    action, text, detail = "buy", f"اشتر {total:g} قرام", f"بحدود {x['buy_px']:.3f} د.ك"
 else:
     action, text, detail = "hold", "لا تسوي شي اليوم", x["why"]
-text += core_line
 
 decision = [{
     "checked_at": datetime.now(timezone.utc).isoformat(timespec="minutes"), "price_date": str(x["date"]),

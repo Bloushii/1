@@ -68,12 +68,9 @@ if cmd == "signal":
           f"دعم 20 يوم {x['low20']:,.0f} | مقاومة {x['high20']:,.0f} | خبر كبير خلال 24 ساعة: {'نعم' if x['event'] else 'لا'}")
     for t in x["sells"]:
         print(f"🔴 بيع {t['grams']:g} قرام (صفقة #{t['id']}، شراء {t['buy_price']:.3f}) ربح {(x['sell_px'] - t['buy_price']) * t['grams']:+.3f} د.ك")
-    if x["core_buy"]:
-        print(f"🟡 اشتر {x['core_buy']:g} قرام للمحفظة الدائمة من الأرباح ({x['pool']:.3f} د.ك) بحدود {x['buy_px']:.3f}، وهذا ما ينباع")
-    if x["buy_grams"]:
-        print(f"🟢 اشتر {x['buy_grams']:g} قرام بحدود {x['buy_px']:.3f} | تبيع لما سعر بيعك للدار يوصل {x['buy_target']:.3f}")
-    if x["hold_grams"]:
-        print(f"🔵 اشتر {x['hold_grams']:g} قرام للتخزين بحدود {x['buy_px']:.3f}، وهذا ما ينباع")
+    total = x["buy_grams"] + x["hold_grams"] + x["core_buy"]
+    if total:
+        print(f"🟢 اشتر {total:g} قرام بحدود {x['buy_px']:.3f} د.ك  [داخلياً: تداول {x['buy_grams']:g}، تخزين {x['hold_grams']:g}، أرباح {x['core_buy']:g}]")
     if not x["sells"] and not x["core_buy"] and not x["buy_grams"] and not x["hold_grams"]:
         print(f"⚪ لا تسوي شي اليوم ({x['why']})")
 elif cmd == "price":
@@ -93,6 +90,18 @@ elif cmd == "quote":
     spr = [(q["buy"] - q["sell"]) / q["buy"] * 100 for q in Q]
     S["dealer_premium_pct"] = round(sum(prem) / len(prem), 2); S["spread_pct"] = round(sum(spr) / len(spr), 2)
     save(); print(f"سجلت السعر ({len(Q)} أسعار). نسبة الدار فوق العالمي: {S['dealer_premium_pct']}% | الفرق بين الشراء والبيع: {S['spread_pct']}%")
+elif cmd == "bought":
+    # المستخدم يقول بس "شريت X قرام بسعر Y". نوزعها على حسب قرار اليوم: تداول، بعدين أرباح، بعدين تخزين
+    price = float(a[0]); x = decide(); left = float(a[1]) if len(a) > 1 else x["buy_grams"] + x["hold_grams"] + x["core_buy"]
+    for kind, n in (("buy", x["buy_grams"]), ("core", x["core_buy"]), ("hold", x["hold_grams"] + left)):
+        n = min(n, left); left -= n
+        if not n: continue
+        if kind == "buy":
+            T.append({"id": len(T) + 1, "date": str(date.today()), "grams": n, "buy_price": price, "sell_price": None})
+        else:
+            CORE.append({"date": str(date.today()), "grams": n, "price": price, "source": "profit" if kind == "core" else "hold"})
+        print(f"✅ {kind}: {n:g} قرام × {price:.3f}")
+    save()
 elif cmd in ("core", "hold"):
     # core: قرام من الأرباح، hold: تخزين على الإشارة. الاثنين ما ينباعون
     price = float(a[0]); g = float(a[1]) if len(a) > 1 else 1

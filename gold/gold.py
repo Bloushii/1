@@ -29,28 +29,34 @@ def early_sell(t, sell_px, x, event):
     ok = sell_px >= t["buy_price"] * (1 + (S["spread_pct"] + 0.75) / 100)
     return ok and (x["rsi"] >= 70 or x["close"] >= x["high20"] * 0.99 or event)
 
-cmd, a = (sys.argv[1] if len(sys.argv) > 1 else "status"), sys.argv[2:]
-
-if cmd == "signal":
-    # قرار اليوم بنفس قواعد المحاكاة. اختياري: سعر بيعك للدار الحين
+def decide(sell_now=None):
+    # قرار اليوم بنفس قواعد المحاكاة. sell_now: سعر بيعك للدار الحين لو معروف
     import backtest as b
     x = b.today(); event = b.event_soon(date.today())
     buy_px = x["close"] / OZ * S["usd_kwd"] * (1 + S["dealer_premium_pct"] / 100)
-    sell_px = float(a[0]) if a else buy_px * (1 - S["spread_pct"] / 100)
-    print(f"آخر سعر {x['date']}: {x['close']:,.1f}$ | الدار تقديراً: شراء {buy_px:.3f} بيع {sell_px:.3f}")
-    print(f"المعدل الفني {x['score']}/10 | RSI {x['rsi']:.0f} | متوسط 50: {x['sma50']:,.0f} | متوسط 200: {x['sma200']:,.0f} | "
-          f"دعم 20 يوم {x['low20']:,.0f} | مقاومة {x['high20']:,.0f} | خبر كبير خلال 24 ساعة: {'نعم' if event else 'لا'}")
+    sell_px = sell_now or buy_px * (1 - S["spread_pct"] / 100)
     sells = [t for t in open_lots() if sell_px >= target(t) or early_sell(t, sell_px, x, event)]
-    for t in sells:
-        print(f"🔴 بيع {t['grams']:g} قرام (صفقة #{t['id']}، شراء {t['buy_price']:.3f}) ربح {(sell_px - t['buy_price']) * t['grams']:+.3f} د.ك")
     lots = [t for t in open_lots() if t not in sells]
     ladder = not lots or buy_px <= min(t["buy_price"] for t in lots) * (1 - S["ladder_gap_pct"] / 100)
     g = next_lot(buy_px, x["score"])
-    if x["buy_ok"] and not event and ladder and len(lots) < S["max_open_lots"] and g:
-        print(f"🟢 اشتر {g:g} قرام بحدود {buy_px:.3f} | تبيع لما سعر بيعك للدار يوصل {buy_px * (1 + (S['spread_pct'] + S['target_pct']) / 100):.3f}")
-    elif not sells:
-        why = "خبر كبير خلال 24 ساعة" if event and x["buy_ok"] else "ما فيه إشارة شراء" if not x["buy_ok"] else "الصفقات المفتوحة ما تسمح"
-        print(f"⚪ لا تسوي شي اليوم ({why})")
+    buy = g if x["buy_ok"] and not event and ladder and len(lots) < S["max_open_lots"] else 0
+    why = "خبر كبير خلال 24 ساعة" if event and x["buy_ok"] else "ما فيه إشارة شراء" if not x["buy_ok"] else "الصفقات المفتوحة ما تسمح"
+    return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=buy, why=why,
+                buy_target=buy_px * (1 + (S["spread_pct"] + S["target_pct"]) / 100))
+
+cmd, a = (sys.argv[1] if len(sys.argv) > 1 else "status") if __name__ == "__main__" else None, sys.argv[2:]
+
+if cmd == "signal":
+    x = decide(float(a[0]) if a else None)
+    print(f"آخر سعر {x['date']}: {x['close']:,.1f}$ | الدار تقديراً: شراء {x['buy_px']:.3f} بيع {x['sell_px']:.3f}")
+    print(f"المعدل الفني {x['score']}/10 | RSI {x['rsi']:.0f} | متوسط 50: {x['sma50']:,.0f} | متوسط 200: {x['sma200']:,.0f} | "
+          f"دعم 20 يوم {x['low20']:,.0f} | مقاومة {x['high20']:,.0f} | خبر كبير خلال 24 ساعة: {'نعم' if x['event'] else 'لا'}")
+    for t in x["sells"]:
+        print(f"🔴 بيع {t['grams']:g} قرام (صفقة #{t['id']}، شراء {t['buy_price']:.3f}) ربح {(x['sell_px'] - t['buy_price']) * t['grams']:+.3f} د.ك")
+    if x["buy_grams"]:
+        print(f"🟢 اشتر {x['buy_grams']:g} قرام بحدود {x['buy_px']:.3f} | تبيع لما سعر بيعك للدار يوصل {x['buy_target']:.3f}")
+    elif not x["sells"]:
+        print(f"⚪ لا تسوي شي اليوم ({x['why']})")
 elif cmd == "price":
     usd_oz = float(a[0]); fx = float(a[1]) if len(a) > 1 else S["usd_kwd"]
     spot = usd_oz / OZ * fx

@@ -16,9 +16,10 @@ def open_lots():
 def realized():
     return sum((t["sell_price"] - t["buy_price"]) * t["grams"] for t in T if t.get("sell_price") is not None)
 
-def next_lot(price):
-    # تراكم: كل ما الربح المحقق يغطي قرام، نزيد حجم الصفقة قرام
-    return S["base_lot_grams"] + (math.floor(realized() / price) if price else 0)
+def next_lot(price, score=6):
+    # الحجم حسب قوة الإشارة، وفوقه تراكم: كل ما الربح المحقق يغطي قرام، نزيد قرام
+    base = max([g for s, g in S["size_by_score"].items() if score >= float(s)], default=0)
+    return base + math.floor(realized() / price) if base else 0
 
 def target(t):
     return t["buy_price"] * (1 + (S["spread_pct"] + S["target_pct"]) / 100)
@@ -43,7 +44,7 @@ elif cmd == "quote":
     S["dealer_premium_pct"] = round(sum(prem) / len(prem), 2); S["spread_pct"] = round(sum(spr) / len(spr), 2)
     save(); print(f"سجلت السعر ({len(Q)} أسعار). نسبة الدار فوق العالمي: {S['dealer_premium_pct']}% | الفرق بين الشراء والبيع: {S['spread_pct']}%")
 elif cmd == "buy":
-    price = float(a[0]); g = float(a[1]) if len(a) > 1 else next_lot(price)
+    price = float(a[0]); g = float(a[1]) if len(a) > 1 else next_lot(price, 10)
     T.append({"id": len(T) + 1, "date": str(date.today()), "grams": g, "buy_price": price, "sell_price": None})
     save(); print(f"✅ سجلت شراء #{len(T)}: {g:g} قرام × {price:.3f} | الهدف {target(T[-1]):.3f}")
 elif cmd == "sell":
@@ -62,7 +63,9 @@ elif cmd == "status":
     if lots:
         floor = min(t["buy_price"] for t in lots) * (1 - S["ladder_gap_pct"] / 100)
         print(f"الشراء الجاي بس تحت {floor:.3f} (أقل من آخر سعر بـ {S['ladder_gap_pct']:g}%)")
-    print(f"الربح المحقق كله: {realized():.3f} د.ك | حجم الصفقة الجاية: {next_lot(lots[-1]['buy_price'] if lots else 40):g} قرام")
+    p = lots[-1]["buy_price"] if lots else 40
+    print(f"الربح المحقق كله: {realized():.3f} د.ك")
+    print("حجم الصفقة الجاية: " + " | ".join(f"معدل {s}+ = {next_lot(p, float(s)):g} قرام" for s in S["size_by_score"]))
 elif cmd == "report":
     month = a[0] if a else str(date.today())[:7]
     done = [t for t in T if t.get("sell_date", "").startswith(month)]

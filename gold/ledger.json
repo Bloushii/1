@@ -4,9 +4,13 @@
     "dealer_premium_pct": 2.06,
     "spread_pct": 0.73,
     "target_pct": 1.5,
-    "base_lot_grams": 1,
-    "max_open_lots": 5,
-    "ladder_gap_pct": 2.0
+    "max_open_lots": 10,
+    "ladder_gap_pct": 1.5,
+    "size_by_score": {
+      "6": 1,
+      "7": 2,
+      "8": 3
+    }
   },
   "notes": "dealer_premium_pct = كم سعر شراء دار السبائك أعلى من السعر العالمي. spread_pct = الفرق بين سعر شرائك من الدار وسعر بيعك لها. معايرة على أسعار الدار يوم 2026-10-27.",
   "trades": [],

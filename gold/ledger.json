@@ -1,0 +1,13 @@
+{
+  "settings": {
+    "usd_kwd": 0.3075,
+    "dealer_premium_pct": 1.2,
+    "spread_pct": 3.0,
+    "target_pct": 1.5,
+    "base_lot_grams": 1,
+    "max_open_lots": 5,
+    "ladder_gap_pct": 2.0
+  },
+  "notes": "dealer_premium_pct = فرق سعر شراء دار السبائك عن السعر العالمي. spread_pct = الفرق بين سعر الشراء من الدار وسعر بيعك لها. كلهم تقديرية لين تعطيني أرقام الدار الفعلية.",
+  "trades": []
+}

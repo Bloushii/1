@@ -23,7 +23,6 @@ description: فحص يومي للذهب عيار 24 بالدينار الكوي�
    - شغّل `python3 gold/export.py "<ملخص الأخبار بسطرين>" "<تنبيه الخبر أو فاضي>" [سعر بيعك للدار]`.
    - ارفع `gold/out/decision.json` و`gold/out/prices.json` و`gold/out/trades.csv`، كل واحد بـ `Artifact` (`url` الصفحة، `asset: true`).
    - حدّث `datasets/decision` و`datasets/prices` و`datasets/trades` بـ `ArtifactData` `update`: الـ `source.url` الجديد، و`updated: {at, by}`، و`if_version` من آخر قراءة.
-8. **أرسل إشعار** بـ `PushNotification` بسطر واحد: القرار، والتنبيه إذا فيه. مثال: "الذهب: لا تسوي شي اليوم. تنبيه: لا تشتري قبل قرار الفيدرالي الأربعاء 9 بالليل".
-9. إذا المستخدم أكّد إنه اشترى أو باع، سجّلها بـ `buy`/`sell` بالسعر الفعلي. سوّ commit وpush للسجل وملف الأسعار.
+8. إذا المستخدم أكّد إنه اشترى أو باع، سجّلها بـ `buy`/`sell` بالسعر الفعلي. سوّ commit وpush للسجل وملف الأسعار.
 
 آخر سطر دايماً: "هذا تحليل آلي وليس نصيحة مالية مرخصة."

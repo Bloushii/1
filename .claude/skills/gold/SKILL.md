@@ -24,6 +24,7 @@ description: فحص يومي للذهب عيار 24 بالدينار الكوي�
    - شغّل `python3 gold/export.py "<ملخص الأخبار بسطرين>" "<تنبيه الخبر أو فاضي>" [سعر بيعك للدار]`.
    - ارفع `gold/out/decision.json` و`gold/out/prices.json` و`gold/out/trades.csv`، كل واحد بـ `Artifact` (`url` الصفحة، `asset: true`).
    - حدّث `datasets/decision` و`datasets/prices` و`datasets/trades` بـ `ArtifactData` `update`: الـ `source.url` الجديد، و`updated: {at, by}`، و`if_version` من آخر قراءة.
+   - **الصفحة الخفيفة** (هذي اللي تنفتح على آيفون المستخدم، https://claude.ai/artifact/P8fppirDYGjeXHmPqedogU): شغّل `python3 gold/page.py`، وانشر `gold/out/page.html` بـ `Artifact` مع `url` هذي.
 8. إذا المستخدم أكّد إنه اشترى أو باع، سجّلها بالسعر الفعلي: الشراء بـ `python3 gold/gold.py bought <السعر> [القرامات]` (يوزعها لحاله حسب قرار اليوم)، والبيع بـ `sell <رقم الصفقة> <السعر>` لكل صفقة طلعت ببيع اليوم. سوّ commit وpush للسجل وملف الأسعار.
 
 آخر سطر دايماً: "هذا تحليل آلي وليس نصيحة مالية مرخصة."

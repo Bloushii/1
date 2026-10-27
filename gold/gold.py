@@ -33,6 +33,15 @@ if cmd == "price":
     print(f"العالمي: {usd_oz:,.2f}$ للأونصة × {fx} = {spot:.3f} د.ك للقرام (24)")
     print(f"تقدير الدار: شراء {buy:.3f} | بيع لهم {sell:.3f}")
     print(f"عشان تربح صفقة لازم يطلع السعر {S['spread_pct'] + S['target_pct']:.1f}% فوق سعر شرائك")
+elif cmd == "quote":
+    # سعر الدار مع السعر العالمي بنفس الوقت: نسجله ونعاير النسب على متوسط كل الأسعار المسجلة
+    buy, sell, usd_oz = map(float, a[:3])
+    Q = d.setdefault("quotes", [])
+    Q.append({"date": str(date.today()), "spot_usd": usd_oz, "buy": buy, "sell": sell})
+    prem = [(q["buy"] / (q["spot_usd"] / OZ * S["usd_kwd"]) - 1) * 100 for q in Q]
+    spr = [(q["buy"] - q["sell"]) / q["buy"] * 100 for q in Q]
+    S["dealer_premium_pct"] = round(sum(prem) / len(prem), 2); S["spread_pct"] = round(sum(spr) / len(spr), 2)
+    save(); print(f"سجلت السعر ({len(Q)} أسعار). نسبة الدار فوق العالمي: {S['dealer_premium_pct']}% | الفرق بين الشراء والبيع: {S['spread_pct']}%")
 elif cmd == "buy":
     price = float(a[0]); g = float(a[1]) if len(a) > 1 else next_lot(price)
     T.append({"id": len(T) + 1, "date": str(date.today()), "grams": g, "buy_price": price, "sell_price": None})

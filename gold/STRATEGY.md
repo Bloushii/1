@@ -38,6 +38,7 @@
 ## الأوامر
 ```
 python3 gold/gold.py price 3990          # يحول سعر الأونصة لسعر القرام بالدينار
+python3 gold/gold.py quote 40.389 40.094 4003   # سعر الدار (شراء بيع) مع العالمي، ويعاير النسب
 python3 gold/gold.py buy 39.920          # سجل شراء بسعر الدار
 python3 gold/gold.py status 38.900       # الصفقات المفتوحة مع سعر بيعك الحالي للدار
 python3 gold/gold.py sell 1 41.800       # سجل بيع الصفقة رقم 1

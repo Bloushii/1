@@ -21,12 +21,13 @@ def event_soon(d):
     nfp = d.day <= 7 and d.weekday() == 4
     return d in FOMC or (d + timedelta(1)) in FOMC or nfp or (d.weekday() == 3 and (d + timedelta(1)).day <= 7)
 
-rows = []
+rows, O = [], []
 for r in csv.DictReader(open(os.path.join(HERE, "data", "xauusd_1d.csv"))):
     d = date.fromisoformat(r["Datetime"][:10])
     if d.weekday() >= 5:  # شمعة الأحد القصيرة
         continue
     rows.append((d, float(r["High"]), float(r["Low"]), float(r["Close"])))
+    O.append(float(r["Open"]))
 
 def rsi(closes, n=14):
     out, ag, al = [None] * len(closes), 0, 0
@@ -72,13 +73,15 @@ def today():
 
 def run(target=S["target_pct"], spread=S["spread_pct"], prem=S["dealer_premium_pct"], fx=S["usd_kwd"],
         max_lots=S["max_open_lots"], gap=S["ladder_gap_pct"], min_score=S["min_score"], use_events=True, compound=True, start=200, end=None, log=False,
-        rsi_trig=S["rsi_trigger"], sup=S["support_pct"], unit=S["unit_grams"]):
+        rsi_trig=S["rsi_trigger"], sup=S["support_pct"], unit=S["unit_grams"], next_open=False):
+    # next_open: القرار على إغلاق اليوم والتنفيذ على افتتاح اليوم اللي بعده (أصعب وأقرب للواقع)
     lots, done, realized, peak_cap, trades, worst = [], [], 0.0, 0.0, [], 0.0
-    end = end or len(rows)
+    end = end or len(rows) - (1 if next_open else 0)
     monthly = defaultdict(float)
     for i in range(start, end):
         d, hi, lo, c = rows[i]
-        buy_px = c / OZ * fx * (1 + prem / 100)
+        px = O[i + 1] if next_open else c
+        buy_px = px / OZ * fx * (1 + prem / 100)
         sell_px = buy_px * (1 - spread / 100)
         sc = score(i)
         resist = c >= max(r[1] for r in rows[i - 19:i + 1]) * 0.99
@@ -118,6 +121,7 @@ if __name__ == "__main__":
     if "-v" in sys.argv:
         print("\n".join(base["trades"]))
     summary("الأساسية", base)
+    summary("التنفيذ على افتتاح اليوم الثاني", run(next_open=True))
     print("\nحسب السنة (ربح محقق):", {y: round(sum(v for m, v in base["monthly"].items() if m.startswith(y)), 2) for y in "2022 2023 2024 2025 2026".split()})
     print("\nمقارنات:")
     for t in (0.75, 1.0, 1.5, 2.5, 4.0):

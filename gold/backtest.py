@@ -72,10 +72,11 @@ def today():
                 prev_high=rows[i - 1][1], buy_ok=buy_ok(i), size=size(score(i)))
 
 def run(target=S["target_pct"], spread=S["spread_pct"], prem=S["dealer_premium_pct"], fx=S["usd_kwd"],
-        max_lots=S["max_open_lots"], gap=S["ladder_gap_pct"], min_score=S["min_score"], use_events=True, compound=True, start=200, end=None, log=False,
+        max_lots=S["max_open_lots"], gap=S["ladder_gap_pct"], min_score=S["min_score"], use_events=True, core=True, start=200, end=None, log=False,
         rsi_trig=S["rsi_trigger"], sup=S["support_pct"], unit=S["unit_grams"], next_open=False):
     # next_open: القرار على إغلاق اليوم والتنفيذ على افتتاح اليوم اللي بعده (أصعب وأقرب للواقع)
     lots, done, realized, peak_cap, trades, worst = [], [], 0.0, 0.0, [], 0.0
+    core_g, core_cost = 0, 0.0  # المحفظة الدائمة: قرامات تنشرى من الأرباح وما تنباع
     end = end or len(rows) - (1 if next_open else 0)
     monthly = defaultdict(float)
     for i in range(start, end):
@@ -94,17 +95,22 @@ def run(target=S["target_pct"], spread=S["spread_pct"], prem=S["dealer_premium_p
                 realized += gain; monthly[d.strftime("%Y-%m")] += gain
                 lots.remove(L); done.append({**L, "out": d, "sell": sell_px, "gain": gain})
                 if log: trades.append(f"{d} بيع  {L['g']:g}g @ {sell_px:.3f} (شراء {L['px']:.3f} يوم {L['d']}) ربح {gain:+.3f}")
+        # الأرباح تشتري قرامات للمحفظة الدائمة
+        if core and realized - core_cost >= buy_px:
+            n = int((realized - core_cost) // buy_px)
+            core_g += n; core_cost += n * buy_px
+            if log: trades.append(f"{d} محفظة دائمة +{n}g @ {buy_px:.3f} من الأرباح")
         # الشراء
         ladder = not lots or buy_px <= min(L["px"] for L in lots) * (1 - gap / 100)
         if buy_ok(i, min_score, rsi_trig, sup) and len(lots) < max_lots and ladder and not (use_events and event_soon(d)):
-            g = size(sc) * unit + (int(realized // buy_px) if compound else 0)
+            g = size(sc) * unit
             lots.append({"d": d, "px": buy_px, "g": g})
             if log: trades.append(f"{d} شراء {g:g}g @ {buy_px:.3f} (معدل {sc}, RSI {R[i]:.0f})")
         peak_cap = max(peak_cap, sum(L["px"] * L["g"] for L in lots))
         worst = min(worst, sum((sell_px - L["px"]) * L["g"] for L in lots))
     last_sell = rows[end - 1][3] / OZ * fx * (1 + prem / 100) * (1 - spread / 100)
     unreal = sum((last_sell - L["px"]) * L["g"] for L in lots)
-    return dict(done=done, lots=lots, realized=realized, unreal=unreal, peak_cap=peak_cap, monthly=monthly,
+    return dict(done=done, lots=lots, realized=realized, unreal=unreal, core_g=core_g, core_val=core_g * last_sell, cash=realized - core_cost, peak_cap=peak_cap, monthly=monthly,
                 trades=trades, worst=worst, months=len({r[0].strftime("%Y-%m") for r in rows[start:end]}))
 
 def summary(name, x):
@@ -114,7 +120,8 @@ def summary(name, x):
     print(f"{name}: {len(x['done'])} صفقة | ربح محقق {x['realized']:.2f} د.ك | أعلى مبلغ مستخدم {x['peak_cap']:.0f} د.ك "
           f"({pct:.1f}% كله، {pct / x['months']:.2f}% بالشهر) | شهور فيها ربح {pos}/{x['months']} | "
           f"متوسط المسكة {sum(hold) / len(hold) if hold else 0:.0f} يوم، أطول {max(hold, default=0)} | "
-          f"أسوأ خسارة مؤقتة {x['worst']:.2f} | مفتوح {sum(L['g'] for L in x['lots']):g}g بـ {x['unreal']:+.2f} د.ك")
+          f"أسوأ خسارة مؤقتة {x['worst']:.2f} | مفتوح {sum(L['g'] for L in x['lots']):g}g بـ {x['unreal']:+.2f} د.ك | "
+          f"المحفظة الدائمة {x['core_g']}g قيمتها {x['core_val']:.2f} + كاش {x['cash']:.2f}")
 
 if __name__ == "__main__":
     base = run(log=True)
@@ -127,7 +134,7 @@ if __name__ == "__main__":
     for t in (0.75, 1.0, 1.5, 2.5, 4.0):
         summary(f"  هدف {t}%", run(target=t))
     summary("  بدون فلتر الأخبار", run(use_events=False))
-    summary("  بدون تراكم", run(compound=False))
+    summary("  الأرباح كاش (بدون محفظة دائمة)", run(core=False))
     summary("  فرق 3% بين الشراء والبيع", run(spread=3.0))
     summary("  أقصى 5 صفقات", run(max_lots=5))
     for s in (5, 7):

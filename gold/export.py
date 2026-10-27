@@ -10,6 +10,7 @@ note = sys.argv[1] if len(sys.argv) > 1 else ""
 alert = sys.argv[2] if len(sys.argv) > 2 else ""
 x = g.decide(float(sys.argv[3]) if len(sys.argv) > 3 else None)
 
+core_line = f" + اشتر {x['core_buy']:g} قرام للمحفظة الدائمة من الأرباح" if x["core_buy"] else ""
 if x["sells"]:
     grams = sum(t["grams"] for t in x["sells"])
     action, text = "sell", f"بيع {grams:g} قرام"
@@ -17,13 +18,18 @@ if x["sells"]:
 elif x["buy_grams"]:
     action, text = "buy", f"اشتر {x['buy_grams']:g} قرام"
     detail = f"بحدود {x['buy_px']:.3f} د.ك، وتبيع لما سعر بيعك للدار يوصل {x['buy_target']:.3f}"
+elif x["core_buy"]:
+    action, text, detail = "buy", f"اشتر {x['core_buy']:g} قرام للمحفظة الدائمة", f"من الأرباح ({x['pool']:.3f} د.ك) بحدود {x['buy_px']:.3f}، وهذا ما ينباع"
+    core_line = ""
 else:
     action, text, detail = "hold", "لا تسوي شي اليوم", x["why"]
+text += core_line
 
 decision = [{
     "checked_at": datetime.now(timezone.utc).isoformat(timespec="minutes"), "price_date": str(x["date"]),
     "action": action, "headline": text, "detail": detail, "news": note, "alert": alert,
     "score": x["score"], "rsi": round(x["rsi"], 1), "event_24h": "نعم" if x["event"] else "لا",
+    "core_grams": g.core_grams(), "held_grams": g.core_grams() + sum(t["grams"] for t in g.open_lots()),
     "spot_usd": round(x["close"], 1), "dealer_buy_kwd": round(x["buy_px"], 3), "dealer_sell_kwd": round(x["sell_px"], 3),
     "sma200_usd": round(x["sma200"]), "support_usd": round(x["low20"]), "resistance_usd": round(x["high20"]),
 }]

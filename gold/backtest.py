@@ -72,11 +72,12 @@ def today():
                 prev_high=rows[i - 1][1], buy_ok=buy_ok(i), size=size(score(i)))
 
 def run(target=S["target_pct"], spread=S["spread_pct"], prem=S["dealer_premium_pct"], fx=S["usd_kwd"],
-        max_lots=S["max_open_lots"], gap=S["ladder_gap_pct"], min_score=S["min_score"], use_events=True, core=True, start=200, end=None, log=False,
+        max_lots=S["max_open_lots"], gap=S["ladder_gap_pct"], min_score=S["min_score"], use_events=True, core=True, hold=False, hold_days=20, start=200, end=None, log=False,
         rsi_trig=S["rsi_trigger"], sup=S["support_pct"], unit=S["unit_grams"], next_open=False):
     # next_open: القرار على إغلاق اليوم والتنفيذ على افتتاح اليوم اللي بعده (أصعب وأقرب للواقع)
     lots, done, realized, peak_cap, trades, worst = [], [], 0.0, 0.0, [], 0.0
     core_g, core_cost = 0, 0.0  # المحفظة الدائمة: قرامات تنشرى من الأرباح وما تنباع
+    hold_g, hold_cost, last_hold = 0, 0.0, None  # التخزين: قرامات تنشرى على الإشارات وما تنباع
     end = end or len(rows) - (1 if next_open else 0)
     monthly = defaultdict(float)
     for i in range(start, end):
@@ -102,6 +103,10 @@ def run(target=S["target_pct"], spread=S["spread_pct"], prem=S["dealer_premium_p
             if log: trades.append(f"{d} محفظة دائمة +{n}g @ {buy_px:.3f} من الأرباح")
         # الشراء
         ladder = not lots or buy_px <= min(L["px"] for L in lots) * (1 - gap / 100)
+        sig = buy_ok(i, min_score, rsi_trig, sup) and not (use_events and event_soon(d))
+        if hold and sig and (last_hold is None or (d - last_hold[0]).days >= hold_days or buy_px <= last_hold[1] * (1 - gap / 100)):
+            q = size(sc) * unit; hold_g += q; hold_cost += q * buy_px; last_hold = (d, buy_px)
+            if log: trades.append(f"{d} تخزين {q:g}g @ {buy_px:.3f}")
         if buy_ok(i, min_score, rsi_trig, sup) and len(lots) < max_lots and ladder and not (use_events and event_soon(d)):
             g = size(sc) * unit
             lots.append({"d": d, "px": buy_px, "g": g})
@@ -110,7 +115,7 @@ def run(target=S["target_pct"], spread=S["spread_pct"], prem=S["dealer_premium_p
         worst = min(worst, sum((sell_px - L["px"]) * L["g"] for L in lots))
     last_sell = rows[end - 1][3] / OZ * fx * (1 + prem / 100) * (1 - spread / 100)
     unreal = sum((last_sell - L["px"]) * L["g"] for L in lots)
-    return dict(done=done, lots=lots, realized=realized, unreal=unreal, core_g=core_g, core_val=core_g * last_sell, cash=realized - core_cost, peak_cap=peak_cap, monthly=monthly,
+    return dict(done=done, lots=lots, realized=realized, unreal=unreal, core_g=core_g, hold_g=hold_g, hold_cost=hold_cost, hold_val=hold_g * last_sell, core_val=core_g * last_sell, cash=realized - core_cost, peak_cap=peak_cap, monthly=monthly,
                 trades=trades, worst=worst, months=len({r[0].strftime("%Y-%m") for r in rows[start:end]}))
 
 def summary(name, x):
@@ -134,6 +139,9 @@ if __name__ == "__main__":
     for t in (0.75, 1.0, 1.5, 2.5, 4.0):
         summary(f"  هدف {t}%", run(target=t))
     summary("  بدون فلتر الأخبار", run(use_events=False))
+    h = run(hold=True)
+    summary("  الخلط (تداول + تخزين)", h)
+    print(f"    التخزين: {h['hold_g']:g}g بتكلفة {h['hold_cost']:.0f} قيمتها {h['hold_val']:.0f} ({(h['hold_val'] / h['hold_cost'] - 1) * 100:+.0f}%)")
     summary("  الأرباح كاش (بدون محفظة دائمة)", run(core=False))
     summary("  فرق 3% بين الشراء والبيع", run(spread=3.0))
     summary("  أقصى 5 صفقات", run(max_lots=5))

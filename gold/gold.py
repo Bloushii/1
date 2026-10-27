@@ -20,11 +20,11 @@ def next_lot(price, score=S["min_score"]):
     # الحجم حسب قوة الإشارة × وحدة القرامات
     return max([g for s, g in S["size_by_score"].items() if score >= float(s)], default=0) * S["unit_grams"]
 
-CORE = d.setdefault("core", [])  # المحفظة الدائمة: قرامات تنشرى من الأرباح وما تنباع
+CORE = d.setdefault("core", [])  # المحفظة الدائمة: قرامات ما تنباع. source: "profit" من الأرباح، "hold" تخزين على الإشارات
 
 def profit_pool():
     # الأرباح اللي ما انشرى فيها ذهب للحين
-    return realized() - sum(c["price"] * c["grams"] for c in CORE)
+    return realized() - sum(c["price"] * c["grams"] for c in CORE if c.get("source", "profit") == "profit")
 
 def core_grams():
     return sum(c["grams"] for c in CORE)
@@ -48,9 +48,14 @@ def decide(sell_now=None):
     ladder = not lots or buy_px <= min(t["buy_price"] for t in lots) * (1 - S["ladder_gap_pct"] / 100)
     g = next_lot(buy_px, x["score"])
     buy = g if x["buy_ok"] and not event and ladder and len(lots) < S["max_open_lots"] else 0
+    holds = [c for c in CORE if c.get("source") == "hold"]
+    last = holds[-1] if holds else None
+    spaced = not last or (date.today() - date.fromisoformat(last["date"])).days >= S["hold_days"] \
+        or buy_px <= last["price"] * (1 - S["ladder_gap_pct"] / 100)
+    hold = next_lot(buy_px, x["score"]) if x["buy_ok"] and not event and spaced else 0
     why = "خبر كبير خلال 24 ساعة" if event and x["buy_ok"] else "ما فيه إشارة شراء" if not x["buy_ok"] else "الصفقات المفتوحة ما تسمح"
     pool = profit_pool() + sum((sell_px - t["buy_price"]) * t["grams"] for t in sells)
-    return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=buy, why=why,
+    return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=buy, hold_grams=hold, why=why,
                 core_buy=math.floor(pool / buy_px), pool=pool,
                 buy_target=buy_px * (1 + (S["spread_pct"] + S["target_pct"]) / 100))
 
@@ -67,7 +72,9 @@ if cmd == "signal":
         print(f"🟡 اشتر {x['core_buy']:g} قرام للمحفظة الدائمة من الأرباح ({x['pool']:.3f} د.ك) بحدود {x['buy_px']:.3f}، وهذا ما ينباع")
     if x["buy_grams"]:
         print(f"🟢 اشتر {x['buy_grams']:g} قرام بحدود {x['buy_px']:.3f} | تبيع لما سعر بيعك للدار يوصل {x['buy_target']:.3f}")
-    elif not x["sells"] and not x["core_buy"]:
+    if x["hold_grams"]:
+        print(f"🔵 اشتر {x['hold_grams']:g} قرام للتخزين بحدود {x['buy_px']:.3f}، وهذا ما ينباع")
+    if not x["sells"] and not x["core_buy"] and not x["buy_grams"] and not x["hold_grams"]:
         print(f"⚪ لا تسوي شي اليوم ({x['why']})")
 elif cmd == "price":
     usd_oz = float(a[0]); fx = float(a[1]) if len(a) > 1 else S["usd_kwd"]
@@ -86,10 +93,11 @@ elif cmd == "quote":
     spr = [(q["buy"] - q["sell"]) / q["buy"] * 100 for q in Q]
     S["dealer_premium_pct"] = round(sum(prem) / len(prem), 2); S["spread_pct"] = round(sum(spr) / len(spr), 2)
     save(); print(f"سجلت السعر ({len(Q)} أسعار). نسبة الدار فوق العالمي: {S['dealer_premium_pct']}% | الفرق بين الشراء والبيع: {S['spread_pct']}%")
-elif cmd == "core":
+elif cmd in ("core", "hold"):
+    # core: قرام من الأرباح، hold: تخزين على الإشارة. الاثنين ما ينباعون
     price = float(a[0]); g = float(a[1]) if len(a) > 1 else 1
-    CORE.append({"date": str(date.today()), "grams": g, "price": price})
-    save(); print(f"✅ سجلت {g:g} قرام للمحفظة الدائمة × {price:.3f} | المحفظة الدائمة صارت {core_grams():g} قرام")
+    CORE.append({"date": str(date.today()), "grams": g, "price": price, "source": "profit" if cmd == "core" else "hold"})
+    save(); print(f"✅ سجلت {g:g} قرام {'من الأرباح' if cmd == 'core' else 'للتخزين'} × {price:.3f} | المحفظة الدائمة صارت {core_grams():g} قرام")
 elif cmd == "buy":
     price = float(a[0]); g = float(a[1]) if len(a) > 1 else next_lot(price, 10)
     T.append({"id": len(T) + 1, "date": str(date.today()), "grams": g, "buy_price": price, "sell_price": None})

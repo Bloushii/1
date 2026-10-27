@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>نموذج مخالفة</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#16181d;--muted:#5f6672;--line:#e2e5ea;--accent:#1f6feb;--wa:#1fa855;--warn:#b45309}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101216;--card:#191c22;--text:#eceef2;--muted:#9aa2ae;--line:#2b3039;--accent:#4c8dff;--wa:#25c063;--warn:#f0a541}}
+:root[data-theme="dark"]{--bg:#101216;--card:#191c22;--text:#eceef2;--muted:#9aa2ae;--line:#2b3039;--accent:#4c8dff;--wa:#25c063;--warn:#f0a541}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
+main{max-width:460px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;margin:0 0 4px}
+p.sub{margin:0 0 20px;color:var(--muted);font-size:14px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:16px;border:0;border-radius:14px;font:inherit;font-weight:600;font-size:17px;cursor:pointer;text-decoration:none;color:#fff;background:var(--accent)}
+.btn.wa{background:var(--wa);margin-top:16px}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line);font-size:15px;padding:12px;margin-top:10px}
+.btn[aria-disabled="true"]{opacity:.45;pointer-events:none}
+input[type=file]{display:none}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn.alt{background:var(--card);color:var(--accent);border:1px solid var(--line)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:18px}
+img#preview{width:100%;max-height:220px;object-fit:cover;border-radius:12px;display:none;margin-top:18px}
+.row{display:grid;grid-template-columns:96px 1fr;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row label{color:var(--muted);font-size:14px}
+.row input{width:100%;min-width:0;font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.status{font-size:13px;color:var(--muted);margin-top:4px;min-height:1.2em}
+.status.warn{color:var(--warn)}
+</style>
+</head>
+<body>
+<main dir="rtl">
+  <h1>نموذج مخالفة</h1>
+  <p class="sub">صوّر السيارة أو اختر صورة، اكتب رقم اللوحة، والوقت والتاريخ والموقع يتعبّون تلقائياً، وبعدها أرسل على واتساب.</p>
+
+  <div class="pick">
+    <label class="btn" for="photo">📷 صوّر الحين</label>
+    <label class="btn alt" for="photo-lib">🖼️ من الاستديو</label>
+  </div>
+  <input id="photo" type="file" accept="image/*" capture="environment">
+  <input id="photo-lib" type="file" accept="image/*">
+  <img id="preview" alt="">
+
+  <div class="card">
+    <div class="row"><label for="f-time">الوقت</label><input id="f-time"></div>
+    <div class="row"><label for="f-date">التاريخ</label><input id="f-date"></div>
+    <div class="row"><label for="f-phone">رقم الهاتف</label><input id="f-phone" value="٥٥٥١٠٠٦٦" readonly></div>
+    <div class="row"><label for="f-plate">رقم اللوحة</label><input id="f-plate" dir="ltr" placeholder="اكتب رقم اللوحة" inputmode="numeric"></div>
+    <div class="row"><label for="f-loc">الموقع</label><input id="f-loc" dir="ltr" placeholder="رابط خرائط جوجل"></div>
+    <div id="plate-status" class="status"></div>
+    <div id="loc-status" class="status"></div>
+    <button id="loc-btn" class="btn ghost" type="button">📍 حدّث موقعي</button>
+  </div>
+
+  <button id="share" class="btn wa" type="button" aria-disabled="true">📲 إرسال الصورة والنموذج على واتساب</button>
+  <div id="share-status" class="status"></div>
+  <a id="wa" class="btn ghost" target="_blank" rel="noopener" aria-disabled="true">فتح محادثة ‎+96599324092 (النص بس)</a>
+</main>
+<script>
+const WA = "96599324092";
+const $ = id => document.getElementById(id);
+const f = {time:$("f-time"), date:$("f-date"), phone:$("f-phone"), plate:$("f-plate"), loc:$("f-loc")};
+
+function setStatus(el, text, warn){ el.textContent = text; el.classList.toggle("warn", !!warn); }
+
+function stamp(){
+  const d = new Date();
+  let h = d.getHours(); const m = String(d.getMinutes()).padStart(2,"0");
+  const ap = h < 12 ? "ص" : "م"; h = h % 12 || 12;
+  f.time.value = `${String(h).padStart(2,"0")}:${m} ${ap}`;
+  f.date.value = `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+}
+
+function formText(){
+  return `تعبئة البيانات:—
+الوقت: ${f.time.value}
+التاريخ: ${f.date.value}
+رقم الهاتف: ${f.phone.value}
+رقم اللوحة: ${f.plate.value || "—"}
+الموقع: ${f.loc.value || "—"}`;
+}
+
+function refreshLink(){
+  const wa = $("wa");
+  wa.href = `https://wa.me/${WA}?text=${encodeURIComponent(formText())}`;
+  wa.setAttribute("aria-disabled", f.plate.value ? "false" : "true");
+  $("share").setAttribute("aria-disabled", f.plate.value && photoFile ? "false" : "true");
+}
+
+let photoFile = null;
+$("share").addEventListener("click", async () => {
+  const st = $("share-status"), text = formText();
+  try { await navigator.clipboard.writeText(text); } catch {}
+  const data = {files:[photoFile], text};
+  if (navigator.canShare?.(data)) {
+    try {
+      await navigator.share(data);
+      setStatus(st, "اختر واتساب ثم الرقم ‎+96599324092.");
+    } catch (e) {
+      if (e.name !== "AbortError") setStatus(st, "ما قدرت أفتح المشاركة. النص منسوخ، افتح المحادثة تحت والصق وأرفق الصورة.", true);
+    }
+  } else {
+    setStatus(st, "جوالك ما يسمح بإرفاق الصورة من هنا. النص منسوخ، افتح المحادثة تحت وأرفق الصورة.", true);
+  }
+});
+Object.values(f).forEach(i => i.addEventListener("input", refreshLink));
+
+function locate(){
+  if (!navigator.geolocation){ setStatus($("loc-status"), "الجهاز ما يدعم تحديد الموقع، الصق رابط خرائط جوجل.", true); return; }
+  setStatus($("loc-status"), "جاري تحديد موقعك…");
+  navigator.geolocation.getCurrentPosition(p => {
+    const {latitude:a, longitude:b} = p.coords;
+    f.loc.value = `https://maps.google.com/?q=${a.toFixed(6)},${b.toFixed(6)}`;
+    setStatus($("loc-status"), "✓ تم تحديد موقعك");
+    refreshLink();
+  }, () => {
+    setStatus($("loc-status"), "ما قدرت أوصل لموقعك. اسمح بالموقع أو الصق رابط خرائط جوجل.", true);
+  }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+}
+$("loc-btn").addEventListener("click", locate);
+
+function onPhoto(e){
+  const file = e.target.files?.[0]; if (!file) return;
+  photoFile = file;
+  const img = $("preview"); img.src = URL.createObjectURL(file); img.style.display = "block";
+  stamp(); locate(); refreshLink(); f.plate.focus();
+  e.target.value = "";
+}
+$("photo").addEventListener("change", onPhoto);
+$("photo-lib").addEventListener("change", onPhoto);
+
+stamp(); refreshLink();
+</script>
+</body>
+</html>

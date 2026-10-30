@@ -1,0 +1,57 @@
+# يطلع ملفات صفحة "قرار الذهب اليومي": القرار، والأسعار، والصفقات
+# python3 gold/export.py "ملخص الأخبار" "تنبيه خبر (أو فاضي)" [سعر بيعك للدار]
+import json, os, sys
+from datetime import datetime, timezone
+import gold as g, backtest as b
+
+OUT = os.path.join(os.path.dirname(__file__), "out")
+os.makedirs(OUT, exist_ok=True)
+note = sys.argv[1] if len(sys.argv) > 1 else ""
+alert = sys.argv[2] if len(sys.argv) > 2 else ""
+x = g.decide(float(sys.argv[3]) if len(sys.argv) > 3 else None)
+
+total = x["buy_grams"] + x["hold_grams"] + x["core_buy"]
+if x.get("trim_grams"):
+    action, text = "sell", f"بيع {x['trim_grams']:g} قرام"
+    detail = f"بحدود {x['sell_px']:.3f} د.ك. متوسط تكلفتك {x['avg_cost']:.3f}، يعني ربح حوالي {(x['sell_px'] - x['avg_cost']) * x['trim_grams']:+.3f} د.ك"
+elif x["sells"]:
+    grams = sum(t["grams"] for t in x["sells"])
+    action, text = "sell", f"بيع {grams:g} قرام"
+    detail = f"بسعر بيعك للدار بحدود {x['sell_px']:.3f} د.ك، والربح {sum((x['sell_px'] - t['buy_price']) * t['grams'] for t in x['sells']):+.3f} د.ك"
+    if total:
+        text += f" واشتر {total:g} قرام"
+elif total:
+    action, text, detail = "buy", f"اشتر {total:g} قرام", f"بحدود {x['buy_px']:.3f} د.ك"
+else:
+    action, text, detail = "hold", "لا تسوي شي اليوم", x["why"]
+
+decision = [{
+    "checked_at": datetime.now(timezone.utc).isoformat(timespec="minutes"), "price_date": str(x["date"]),
+    "action": action, "headline": text, "detail": detail, "news": note, "alert": alert,
+    "score": x["score"], "rsi": round(x["rsi"], 1), "event_24h": "نعم" if x["event"] else "لا",
+    "core_grams": g.core_grams(), "held_grams": g.core_grams() + sum(t["grams"] for t in g.open_lots()),
+    "spot_usd": round(x["close"], 1), "dealer_buy_kwd": round(x["buy_px"], 3), "dealer_sell_kwd": round(x["sell_px"], 3),
+    "sma200_usd": round(x["sma200"]), "support_usd": round(x["low20"]), "resistance_usd": round(x["high20"]),
+}]
+f = g.S["usd_kwd"] / g.OZ * (1 + g.S["dealer_premium_pct"] / 100)
+prices = [{"day": str(r[0]), "spot_usd": round(r[3], 1), "dealer_buy_kwd": round(r[3] * f, 3)} for r in b.rows[-130:]]
+trades = [{"id": t["id"], "bought": t["date"], "grams": t["grams"], "buy_kwd": t["buy_price"],
+           "target_kwd": round(g.target(t), 3), "sold": t.get("sell_date", ""), "sell_kwd": t.get("sell_price"),
+           "profit_kwd": round((t["sell_price"] if t.get("sell_price") is not None else x["sell_px"]) - t["buy_price"], 3) * t["grams"],
+           "status": "مفتوحة" if t.get("sell_price") is None else "مباعة"} for t in g.T]
+# المشتريات اللي ما تنباع (DCA وغيره) تطلع بالجدول بعد
+trades += [{"id": f"D{n}", "bought": c["date"], "grams": c["grams"], "buy_kwd": c["price"], "target_kwd": "",
+            "sold": "", "sell_kwd": None, "profit_kwd": round((x["sell_px"] - c["price"]) * c["grams"], 3), "status": "محفوظة"}
+           for n, c in enumerate(g.CORE, 1)]
+trades += [{"id": f"S{n}", "bought": t["date"], "grams": -t["grams"], "buy_kwd": t["avg"], "target_kwd": "",
+            "sold": t["date"], "sell_kwd": t["price"], "profit_kwd": round((t["price"] - t["avg"]) * t["grams"], 3), "status": "مباعة"}
+           for n, t in enumerate(g.SALES, 1)]
+trades.sort(key=lambda t: t["bought"])
+for name, rows in (("decision", decision), ("prices", prices)):
+    json.dump(rows, open(os.path.join(OUT, f"{name}.json"), "w"), ensure_ascii=False)
+# الصفقات CSV عشان العناوين تبقى حتى لو ما فيه صفقات
+import csv
+cols = ["id", "bought", "grams", "buy_kwd", "target_kwd", "sold", "sell_kwd", "profit_kwd", "status"]
+with open(os.path.join(OUT, "trades.csv"), "w", newline="") as fh:
+    w = csv.DictWriter(fh, cols); w.writeheader(); w.writerows(trades)
+print(text, "|", detail)

@@ -72,7 +72,7 @@ def today():
                 prev_high=rows[i - 1][1], buy_ok=buy_ok(i), size=size(score(i)))
 
 def run(target=S["target_pct"], spread=S["spread_pct"], prem=S["dealer_premium_pct"], fx=S["usd_kwd"],
-        max_lots=S["max_open_lots"], gap=S["ladder_gap_pct"], min_score=S["min_score"], use_events=True, core=True, hold=False, hold_days=20, start=200, end=None, log=False,
+        max_lots=S["max_open_lots"], gap=S["ladder_gap_pct"], min_score=S["min_score"], use_events=True, core=True, hold=False, hold_days=S["hold_days"], start=200, end=None, log=False,
         rsi_trig=S["rsi_trigger"], sup=S["support_pct"], unit=S["unit_grams"], next_open=False):
     # next_open: القرار على إغلاق اليوم والتنفيذ على افتتاح اليوم اللي بعده (أصعب وأقرب للواقع)
     lots, done, realized, peak_cap, trades, worst = [], [], 0.0, 0.0, [], 0.0

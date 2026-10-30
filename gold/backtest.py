@@ -64,12 +64,18 @@ def buy_ok(i, min_score=S["min_score"], rsi_trig=S["rsi_trigger"], sup=S["suppor
     confirm = c > sma(i, 200) or c > rows[i - 1][1]
     return score(i) >= min_score and trig and confirm
 
+def dip_ok(i):
+    # نفس buy_ok بدون شرط الارتداد. مع DCA جربناه على 10 سنين وطلع نفس النسبة أو أحسن
+    c = C[i]
+    trig = c <= min(r[2] for r in rows[i - 19:i + 1]) * (1 + S["support_pct"] / 100) or R[i] <= S["rsi_trigger"]
+    return score(i) >= S["min_score"] and trig
+
 def today():
     # إشارة آخر يوم بالبيانات، بنفس قواعد المحاكاة
     i = len(rows) - 1
     return dict(date=rows[i][0], close=C[i], score=score(i), rsi=R[i], sma50=sma(i, 50), sma200=sma(i, 200),
                 low20=min(r[2] for r in rows[i - 19:i + 1]), high20=max(r[1] for r in rows[i - 19:i + 1]),
-                prev_high=rows[i - 1][1], buy_ok=buy_ok(i), size=size(score(i)))
+                prev_high=rows[i - 1][1], buy_ok=buy_ok(i), dip=dip_ok(i), size=size(score(i)))
 
 def run(target=S["target_pct"], spread=S["spread_pct"], prem=S["dealer_premium_pct"], fx=S["usd_kwd"],
         max_lots=S["max_open_lots"], gap=S["ladder_gap_pct"], min_score=S["min_score"], use_events=True, core=True, hold=False, hold_days=S["hold_days"], start=200, end=None, log=False,

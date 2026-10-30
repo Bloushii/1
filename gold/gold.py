@@ -69,7 +69,7 @@ def decide(sell_now=None):
         buy, hold = 0, dca.dca_grams(len(b.rows) - 1, S["dca_base_grams"]) if due and not event else 0
         # فرصة بين مواعيد DCA: إشارة شراء والسعر أرخص من آخر شراء بـ 1.5%
         latest = max(CORE, key=lambda c: c["date"]) if CORE else None
-        if not hold and not event and x["buy_ok"] and latest and buy_px <= latest["price"] * (1 - S["ladder_gap_pct"] / 100):
+        if not hold and not event and x["dip"] and latest and buy_px <= latest["price"] * (1 - S["ladder_gap_pct"] / 100):
             hold = S["dca_base_grams"] * (2 if x["score"] >= 7 else 1)
         # ربح زين: نبيع ربع الذهب لما السعر مولّع (RSI عالي) وربحك على متوسط التكلفة عالي، مرة كل 30 يوم كحد أقصى
         g = core_grams(); avg = core_cost() / g if g else 0; trim = 0

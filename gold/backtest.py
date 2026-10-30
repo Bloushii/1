@@ -77,7 +77,8 @@ def run(target=S["target_pct"], spread=S["spread_pct"], prem=S["dealer_premium_p
     # next_open: القرار على إغلاق اليوم والتنفيذ على افتتاح اليوم اللي بعده (أصعب وأقرب للواقع)
     lots, done, realized, peak_cap, trades, worst = [], [], 0.0, 0.0, [], 0.0
     core_g, core_cost = 0, 0.0  # المحفظة الدائمة: قرامات تنشرى من الأرباح وما تنباع
-    hold_g, hold_cost, last_hold = 0, 0.0, None  # التخزين: قرامات تنشرى على الإشارات وما تنباع
+    hold_g, hold_cost, last_hold = 0, 0.0, None
+    peak_net, worst_all = 0.0, 0.0  # التخزين: قرامات تنشرى على الإشارات وما تنباع
     end = end or len(rows) - (1 if next_open else 0)
     monthly = defaultdict(float)
     for i in range(start, end):
@@ -113,9 +114,12 @@ def run(target=S["target_pct"], spread=S["spread_pct"], prem=S["dealer_premium_p
             if log: trades.append(f"{d} شراء {g:g}g @ {buy_px:.3f} (معدل {sc}, RSI {R[i]:.0f})")
         peak_cap = max(peak_cap, sum(L["px"] * L["g"] for L in lots))
         worst = min(worst, sum((sell_px - L["px"]) * L["g"] for L in lots))
+        net = sum(L["px"] * L["g"] for L in lots) + hold_cost - realized  # صافي اللي من جيبك
+        val = (sum(L["g"] for L in lots) + hold_g) * sell_px
+        peak_net = max(peak_net, net); worst_all = min(worst_all, val - net)
     last_sell = rows[end - 1][3] / OZ * fx * (1 + prem / 100) * (1 - spread / 100)
     unreal = sum((last_sell - L["px"]) * L["g"] for L in lots)
-    return dict(done=done, lots=lots, realized=realized, unreal=unreal, core_g=core_g, hold_g=hold_g, hold_cost=hold_cost, hold_val=hold_g * last_sell, core_val=core_g * last_sell, cash=realized - core_cost, peak_cap=peak_cap, monthly=monthly,
+    return dict(peak_net=peak_net, worst_all=worst_all, done=done, lots=lots, realized=realized, unreal=unreal, core_g=core_g, hold_g=hold_g, hold_cost=hold_cost, hold_val=hold_g * last_sell, core_val=core_g * last_sell, cash=realized - core_cost, peak_cap=peak_cap, monthly=monthly,
                 trades=trades, worst=worst, months=len({r[0].strftime("%Y-%m") for r in rows[start:end]}))
 
 def summary(name, x):

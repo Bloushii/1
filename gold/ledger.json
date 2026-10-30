@@ -100,6 +100,12 @@
       "grams": 1.0,
       "price": 40.253,
       "source": "hold"
+    },
+    {
+      "date": "2026-10-30",
+      "grams": 2.0,
+      "price": 39.521,
+      "source": "hold"
     }
   ],
   "core_sales": []

@@ -18,7 +18,11 @@
     "hold_days": 10,
     "mode": "dca",
     "dca_every_days": 14,
-    "dca_base_grams": 1
+    "dca_base_grams": 1,
+    "trim_rsi": 80,
+    "trim_profit_pct": 20,
+    "trim_frac": 0.25,
+    "trim_cooldown_days": 30
   },
   "notes": "dealer_premium_pct = كم سعر شراء دار السبائك أعلى من السعر العالمي. spread_pct = الفرق بين سعر شرائك من الدار وسعر بيعك لها. معايرة على أسعار الدار يوم 2026-10-27. 2026-10-27: نزّلنا النسبة 0.1 د.ك بعد ما قال المستخدم إن التقدير أعلى من سعر الدار الفعلي بـ 100 فلس.",
   "trades": [],
@@ -97,5 +101,6 @@
       "price": 40.253,
       "source": "hold"
     }
-  ]
+  ],
+  "core_sales": []
 }

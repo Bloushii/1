@@ -11,7 +11,10 @@ alert = sys.argv[2] if len(sys.argv) > 2 else ""
 x = g.decide(float(sys.argv[3]) if len(sys.argv) > 3 else None)
 
 total = x["buy_grams"] + x["hold_grams"] + x["core_buy"]
-if x["sells"]:
+if x.get("trim_grams"):
+    action, text = "sell", f"بيع {x['trim_grams']:g} قرام"
+    detail = f"بحدود {x['sell_px']:.3f} د.ك. متوسط تكلفتك {x['avg_cost']:.3f}، يعني ربح حوالي {(x['sell_px'] - x['avg_cost']) * x['trim_grams']:+.3f} د.ك"
+elif x["sells"]:
     grams = sum(t["grams"] for t in x["sells"])
     action, text = "sell", f"بيع {grams:g} قرام"
     detail = f"بسعر بيعك للدار بحدود {x['sell_px']:.3f} د.ك، والربح {sum((x['sell_px'] - t['buy_price']) * t['grams'] for t in x['sells']):+.3f} د.ك"
@@ -40,6 +43,9 @@ trades = [{"id": t["id"], "bought": t["date"], "grams": t["grams"], "buy_kwd": t
 trades += [{"id": f"D{n}", "bought": c["date"], "grams": c["grams"], "buy_kwd": c["price"], "target_kwd": "",
             "sold": "", "sell_kwd": None, "profit_kwd": round((x["sell_px"] - c["price"]) * c["grams"], 3), "status": "محفوظة"}
            for n, c in enumerate(g.CORE, 1)]
+trades += [{"id": f"S{n}", "bought": t["date"], "grams": -t["grams"], "buy_kwd": t["avg"], "target_kwd": "",
+            "sold": t["date"], "sell_kwd": t["price"], "profit_kwd": round((t["price"] - t["avg"]) * t["grams"], 3), "status": "مباعة"}
+           for n, t in enumerate(g.SALES, 1)]
 trades.sort(key=lambda t: t["bought"])
 for name, rows in (("decision", decision), ("prices", prices)):
     json.dump(rows, open(os.path.join(OUT, f"{name}.json"), "w"), ensure_ascii=False)

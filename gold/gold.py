@@ -26,8 +26,17 @@ def profit_pool():
     # الأرباح اللي ما انشرى فيها ذهب للحين
     return realized() - sum(c["price"] * c["grams"] for c in CORE if c.get("source", "profit") == "profit")
 
+SALES = d.setdefault("core_sales", [])  # بيع من الذهب المحفوظ، بمتوسط التكلفة وقت البيع
+
 def core_grams():
-    return sum(c["grams"] for c in CORE)
+    return sum(c["grams"] for c in CORE) - sum(x["grams"] for x in SALES)
+
+def core_cost():
+    # تكلفة الذهب المحفوظ اللي باقي (متوسط تكلفة)
+    return sum(c["grams"] * c["price"] for c in CORE) - sum(x["grams"] * x["avg"] for x in SALES)
+
+def core_realized():
+    return sum((x["price"] - x["avg"]) * x["grams"] for x in SALES)
 
 def target(t):
     return t["buy_price"] * (1 + (S["spread_pct"] + S["target_pct"]) / 100)
@@ -58,11 +67,20 @@ def decide(sell_now=None):
         import dca
         due = not last or (date.today() - date.fromisoformat(last["date"])).days >= S["dca_every_days"]
         buy, hold = 0, dca.dca_grams(len(b.rows) - 1, S["dca_base_grams"]) if due and not event else 0
+        # فرصة بين مواعيد DCA: إشارة شراء والسعر أرخص من آخر شراء بـ 1.5%
+        latest = max(CORE, key=lambda c: c["date"]) if CORE else None
+        if not hold and not event and x["buy_ok"] and latest and buy_px <= latest["price"] * (1 - S["ladder_gap_pct"] / 100):
+            hold = S["dca_base_grams"] * (2 if x["score"] >= 7 else 1)
+        # ربح زين: نبيع ربع الذهب لما السعر مولّع (RSI عالي) وربحك على متوسط التكلفة عالي، مرة كل 30 يوم كحد أقصى
+        g = core_grams(); avg = core_cost() / g if g else 0; trim = 0
+        recent = SALES and (date.today() - date.fromisoformat(SALES[-1]["date"])).days < S["trim_cooldown_days"]
+        if g and not recent and x["rsi"] >= S["trim_rsi"] and sell_px >= avg * (1 + S["trim_profit_pct"] / 100):
+            trim = max(1, round(g * S["trim_frac"])); hold = 0
         nxt = date.fromordinal(date.fromisoformat(last["date"]).toordinal() + S["dca_every_days"]) if last else date.today()
         why = ("خبر كبير خلال 24 ساعة، نشتري أول يوم بعده" if due and event else
                "السعر مرتفع بقوة (RSI فوق 70)، نفوّت هالمرة" if due else f"الشراء الجاي يوم {nxt}")
         return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=0, hold_grams=hold, why=why,
-                    core_buy=0, pool=profit_pool(), buy_target=0)
+                    core_buy=0, pool=profit_pool(), buy_target=0, trim_grams=trim, avg_cost=avg)
     why = "خبر كبير خلال 24 ساعة" if event and x["buy_ok"] else "ما فيه إشارة شراء" if not x["buy_ok"] else "الصفقات المفتوحة ما تسمح"
     pool = profit_pool() + sum((sell_px - t["buy_price"]) * t["grams"] for t in sells)
     return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=buy, hold_grams=hold, why=why,
@@ -78,10 +96,12 @@ if cmd == "signal":
           f"دعم 20 يوم {x['low20']:,.0f} | مقاومة {x['high20']:,.0f} | خبر كبير خلال 24 ساعة: {'نعم' if x['event'] else 'لا'}")
     for t in x["sells"]:
         print(f"🔴 بيع {t['grams']:g} قرام (صفقة #{t['id']}، شراء {t['buy_price']:.3f}) ربح {(x['sell_px'] - t['buy_price']) * t['grams']:+.3f} د.ك")
+    if x.get("trim_grams"):
+        print(f"🔴 بيع {x['trim_grams']:g} قرام بحدود {x['sell_px']:.3f} (متوسط تكلفتك {x['avg_cost']:.3f}) ربح {(x['sell_px'] - x['avg_cost']) * x['trim_grams']:+.3f} د.ك")
     total = x["buy_grams"] + x["hold_grams"] + x["core_buy"]
     if total:
         print(f"🟢 اشتر {total:g} قرام بحدود {x['buy_px']:.3f} د.ك  [داخلياً: تداول {x['buy_grams']:g}، تخزين {x['hold_grams']:g}، أرباح {x['core_buy']:g}]")
-    if not x["sells"] and not x["core_buy"] and not x["buy_grams"] and not x["hold_grams"]:
+    if not x["sells"] and not x["core_buy"] and not x["buy_grams"] and not x["hold_grams"] and not x.get("trim_grams"):
         print(f"⚪ لا تسوي شي اليوم ({x['why']})")
 elif cmd == "price":
     usd_oz = float(a[0]); fx = float(a[1]) if len(a) > 1 else S["usd_kwd"]
@@ -112,6 +132,11 @@ elif cmd == "bought":
             CORE.append({"date": str(date.today()), "grams": n, "price": price, "source": "profit" if kind == "core" else "hold"})
         print(f"✅ {kind}: {n:g} قرام × {price:.3f}")
     save()
+elif cmd == "sold":
+    # بيع من الذهب المحفوظ: python3 gold/gold.py sold <السعر> <القرامات>
+    price, g = float(a[0]), float(a[1]); avg = core_cost() / core_grams()
+    SALES.append({"date": str(date.today()), "grams": g, "price": price, "avg": round(avg, 4)})
+    save(); print(f"✅ بعت {g:g} قرام × {price:.3f} | متوسط التكلفة {avg:.3f} | الربح {(price - avg) * g:+.3f} د.ك | باقي {core_grams():g} قرام")
 elif cmd in ("core", "hold"):
     # core: قرام من الأرباح، hold: تخزين على الإشارة. الاثنين ما ينباعون
     price = float(a[0]); g = float(a[1]) if len(a) > 1 else 1
@@ -141,34 +166,32 @@ elif cmd == "status":
     print(f"الربح المحقق كله: {realized():.3f} د.ك | المحفظة الدائمة {core_grams():g} قرام | أرباح تنتظر قرام: {profit_pool():.3f} د.ك")
     print("حجم الصفقة الجاية: " + " | ".join(f"معدل {s}+ = {next_lot(p, float(s)):g} قرام" for s in S["size_by_score"]))
 elif cmd == "report":
-    # تقرير الشهر: الصفقات المباعة فيه، والمفتوحة لين نهايته، والمجموع من البداية. اختياري: سعر بيعك للدار الحين
+    # تقرير الشهر: كل الشراء والبيع فيه (التداول والذهب المحفوظ)، وقيمة المحفظة. اختياري: سعر بيعك للدار الحين
     month = a[0] if a else str(date.today())[:7]
     sell_now = float(a[1]) if len(a) > 1 else None
-    days = lambda t: (date.fromisoformat(t["sell_date"]) - date.fromisoformat(t["date"])).days
-    done = [t for t in T if t.get("sell_date", "").startswith(month)]
-    gains = [(t["sell_price"] - t["buy_price"]) * t["grams"] for t in done]
-    capital = sum(t["buy_price"] * t["grams"] for t in done)
-    bought = [t for t in T if t["date"].startswith(month)]
+    buys = [(t["grams"], t["buy_price"]) for t in T if t["date"].startswith(month)] + \
+           [(c["grams"], c["price"]) for c in CORE if c["date"].startswith(month)]
+    sells = [((t["sell_price"] - t["buy_price"]) * t["grams"], t["buy_price"] * t["grams"]) for t in T if t.get("sell_date", "").startswith(month)] + \
+            [((x["price"] - x["avg"]) * x["grams"], x["avg"] * x["grams"]) for x in SALES if x["date"].startswith(month)]
     print(f"تقرير شهر {month}")
-    print(f"اشتريت: {len(bought)} صفقة، {sum(t['grams'] for t in bought):g} قرام")
-    print(f"بعت: {len(done)} صفقة | رابحة {sum(1 for x in gains if x > 0)} | خاسرة {sum(1 for x in gains if x < 0)}")
-    if done:
-        print(f"الربح: {sum(gains):.3f} د.ك | متوسط ربح الصفقة {sum(gains) / len(done):.3f} د.ك "
-              f"({sum(gains) / capital * 100:.2f}% على المبلغ اللي اشتغل فيها)")
-        print(f"متوسط مدة الصفقة: {sum(map(days, done)) / len(done):.0f} يوم | أفضل صفقة {max(gains):+.3f} | أقل صفقة {min(gains):+.3f}")
-    lots = [t for t in T if t["date"] <= month + "-31" and (t.get("sell_date") or "9999") > month + "-31"]
-    if lots:
-        cost = sum(t["buy_price"] * t["grams"] for t in lots)
-        line = f"مفتوح: {len(lots)} صفقة، {sum(t['grams'] for t in lots):g} قرام بتكلفة {cost:.3f} د.ك"
-        if sell_now:
-            line += f" | لو بعتها الحين {sum((sell_now - t['buy_price']) * t['grams'] for t in lots):+.3f} د.ك"
-        print(line)
-    allg = [(t["sell_price"] - t["buy_price"]) * t["grams"] for t in T if t.get("sell_price") is not None]
-    peak = max([sum(t["buy_price"] * t["grams"] for t in T if t["date"] <= day and (t.get("sell_date") or "9999") > day)
-                for day in {t["date"] for t in T}], default=0)
-    held = core_grams() + sum(t["grams"] for t in T if t.get("sell_price") is None)
-    print(f"ذهبك كله الحين: {held:g} قرام (منها {core_grams():g} دائمة من الأرباح) | أرباح تنتظر قرام: {profit_pool():.3f} د.ك"
-          + (f" | قيمته {held * sell_now:.3f} د.ك" if sell_now else ""))
-    if allg:
-        print(f"من البداية: {len(allg)} صفقة مباعة، ربح {sum(allg):.3f} د.ك | أعلى مبلغ كان محبوس {peak:.3f} د.ك"
-              + (f" | العائد {sum(allg) / peak * 100:.2f}%" if peak else ""))
+    if buys:
+        g = sum(q for q, _ in buys); spent = sum(q * p for q, p in buys)
+        print(f"اشتريت: {len(buys)} مرة، {g:g} قرام بـ {spent:.3f} د.ك (متوسط {spent / g:.3f})")
+    else:
+        print("اشتريت: ولا مرة")
+    if sells:
+        gains = [x for x, _ in sells]
+        print(f"بعت: {len(sells)} مرة | رابحة {sum(1 for x in gains if x > 0)} | خاسرة {sum(1 for x in gains if x < 0)} | "
+              f"الربح {sum(gains):.3f} د.ك ({sum(gains) / sum(c for _, c in sells) * 100:.2f}%) | أفضل {max(gains):+.3f} | أقل {min(gains):+.3f}")
+    else:
+        print("بعت: ولا مرة")
+    lots = open_lots()
+    held = core_grams() + sum(t["grams"] for t in lots)
+    cost = core_cost() + sum(t["buy_price"] * t["grams"] for t in lots)
+    line = f"ذهبك كله الحين: {held:g} قرام بتكلفة {cost:.3f} د.ك (متوسط {cost / held:.3f})" if held else "ذهبك كله الحين: 0"
+    if sell_now and held:
+        line += f" | قيمته لو تبيعه {held * sell_now:.3f} د.ك ({held * sell_now - cost:+.3f}، {(held * sell_now / cost - 1) * 100:+.2f}%)"
+    print(line)
+    real = realized() + core_realized()
+    if real:
+        print(f"الربح اللي قبضته من البداية: {real:.3f} د.ك")

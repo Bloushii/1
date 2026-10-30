@@ -18,7 +18,7 @@
     "hold_days": 10,
     "mode": "dca",
     "dca_every_days": 14,
-    "dca_base_grams": 1,
+    "dca_base_grams": 2,
     "trim_rsi": 80,
     "trim_profit_pct": 20,
     "trim_frac": 0.25,

@@ -36,6 +36,11 @@ trades = [{"id": t["id"], "bought": t["date"], "grams": t["grams"], "buy_kwd": t
            "target_kwd": round(g.target(t), 3), "sold": t.get("sell_date", ""), "sell_kwd": t.get("sell_price"),
            "profit_kwd": round((t["sell_price"] if t.get("sell_price") is not None else x["sell_px"]) - t["buy_price"], 3) * t["grams"],
            "status": "مفتوحة" if t.get("sell_price") is None else "مباعة"} for t in g.T]
+# المشتريات اللي ما تنباع (DCA وغيره) تطلع بالجدول بعد
+trades += [{"id": f"D{n}", "bought": c["date"], "grams": c["grams"], "buy_kwd": c["price"], "target_kwd": "",
+            "sold": "", "sell_kwd": None, "profit_kwd": round((x["sell_px"] - c["price"]) * c["grams"], 3), "status": "محفوظة"}
+           for n, c in enumerate(g.CORE, 1)]
+trades.sort(key=lambda t: t["bought"])
 for name, rows in (("decision", decision), ("prices", prices)):
     json.dump(rows, open(os.path.join(OUT, f"{name}.json"), "w"), ensure_ascii=False)
 # الصفقات CSV عشان العناوين تبقى حتى لو ما فيه صفقات

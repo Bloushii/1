@@ -5,11 +5,10 @@ def dca_grams(i, base=1, smart=True):
     # كم قرام هالأسبوع حسب حالة السعر
     if not smart:
         return base
-    if b.buy_ok(i):
-        return base * (3 if b.score(i) >= 7 else 2)
+    # نفس قواعد الفائز بمسابقة gold/tournament.py
     if b.R[i] >= 70:
-        return 0  # السعر مولّع، نفوّت هالأسبوع
-    return base
+        return 0  # السعر مولّع، نفوّت هالمرة
+    return base * (2 if b.dip_ok(i) else 1)
 
 def run(start, end=None, base=1, smart=True, every=7):
     S = b.S; f = S["usd_kwd"] / b.OZ * (1 + S["dealer_premium_pct"] / 100)

@@ -79,16 +79,20 @@ def decide(sell_now=None):
         # فرصة بين مواعيد DCA: إشارة شراء والسعر أرخص من آخر شراء بـ 1.5%
         latest = CORE[-1] if CORE else None  # آخر شراء مسجل (بالترتيب، لأن فيه أكثر من شراء باليوم)
         if not hold and not event and x["dip"] and latest and buy_px <= latest["price"] * (1 - S["ladder_gap_pct"] / 100):
-            hold = S["dca_base_grams"] * (2 if x["score"] >= 7 else 1)
+            hold = S["dca_base_grams"]
         # احتياطي النزول القوي: لو السعر تحت أعلى سعر خلال سنة بـ 10% نضاعف، وبـ 20% نشتري 3 أضعاف
         hi = max(r[1] for r in b.rows[-251:]); dd = (1 - x["close"] / hi) * 100
-        mult = 3 if dd >= S["deep_dd_3x"] else 2 if dd >= S["deep_dd_2x"] else 1
-        hold *= mult
+        if S.get("scale") == "sma":
+            # الفائز بالمسابقة (gold/tournament.py): الكمية تكبر كل ما نزل السعر تحت متوسط 200 يوم وتصغر فوقه
+            mult = max(.25, min(4, (x["sma200"] / x["close"]) ** S["sma_power"]))
+        else:
+            mult = 3 if dd >= S["deep_dd_3x"] else 2 if dd >= S["deep_dd_2x"] else 1
+        hold = max(1, round(hold * mult)) if hold else 0
         # ربح زين: نبيع ربع الذهب لما السعر مولّع (RSI عالي) وربحك على متوسط التكلفة عالي، مرة كل 30 يوم كحد أقصى
         g = core_grams(); avg = core_cost() / g if g else 0; trim = 0
         recent = SALES and (date.today() - date.fromisoformat(SALES[-1]["date"])).days < S["trim_cooldown_days"]
         if g and not recent and x["rsi"] >= S["trim_rsi"] and sell_px >= avg * (1 + S["trim_profit_pct"] / 100):
-            trim = max(1, round(g * S["trim_frac"])); hold = 0
+            trim = max(1, round(g * S["trim_frac"])); hold = 0  # نبيع نص الذهب
         nxt = date.fromordinal(date.fromisoformat(last["date"]).toordinal() + S["dca_every_days"]) if last else date.today()
         why = ("خبر كبير خلال 24 ساعة، نشتري أول يوم بعده" if due and event else
                "السعر مرتفع بقوة (RSI فوق 70)، نفوّت هالمرة" if due else f"الشراء الجاي يوم {nxt}")

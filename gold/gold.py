@@ -53,6 +53,7 @@ def decide(sell_now=None):
     dar = darmod.fetch() if os.environ.get("GOLD_LIVE", "1") == "1" else None
     live = b.apply_live(dar["ounce"] if dar else None) if os.environ.get("GOLD_LIVE", "1") == "1" else None
     x = b.today(); x["live"] = live; x["dar"] = dar; event = b.event_soon(date.today())
+    x["calendar_gap"] = date.today() > b.FOMC_COMPLETE_UNTIL  # مواعيد الفيدرالي ناقصة، لازم نشيك يدوياً
     if dar:
         # سعر الدار الفعلي، ونعاير النسب عليه عشان المستويات المحسوبة من الأونصة تطلع صح
         S["dealer_premium_pct"] = round((dar["buy"] / (dar["ounce"] / OZ * S["usd_kwd"]) - 1) * 100, 3)
@@ -109,6 +110,8 @@ cmd, a = (sys.argv[1] if len(sys.argv) > 1 else "status") if __name__ == "__main
 if cmd == "signal":
     x = decide(float(a[0]) if a else None)
     src = "سعر الدار الفعلي" if x.get("dar") else "الدار تقديراً"
+    if x.get("calendar_gap"):
+        print("⚠️ مواعيد اجتماعات الفيدرالي بالكود ناقصة لهالسنة، شيك عليها بالأخبار")
     print(("سعر لحظي " if x.get("live") else "") + f"آخر سعر {x['date']}: {x['close']:,.1f}$ | {src}: شراء {x['buy_px']:.3f} بيع {x['sell_px']:.3f}")
     print(f"المعدل الفني {x['score']}/10 | RSI {x['rsi']:.0f} | متوسط 50: {x['sma50']:,.0f} | متوسط 200: {x['sma200']:,.0f} | "
           f"دعم 20 يوم {x['low20']:,.0f} | مقاومة {x['high20']:,.0f} | خبر كبير خلال 24 ساعة: {'نعم' if x['event'] else 'لا'}")

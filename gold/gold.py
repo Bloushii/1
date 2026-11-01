@@ -71,6 +71,10 @@ def decide(sell_now=None):
         latest = CORE[-1] if CORE else None  # آخر شراء مسجل (بالترتيب، لأن فيه أكثر من شراء باليوم)
         if not hold and not event and x["dip"] and latest and buy_px <= latest["price"] * (1 - S["ladder_gap_pct"] / 100):
             hold = S["dca_base_grams"] * (2 if x["score"] >= 7 else 1)
+        # احتياطي النزول القوي: لو السعر تحت أعلى سعر خلال سنة بـ 10% نضاعف، وبـ 20% نشتري 3 أضعاف
+        hi = max(r[1] for r in b.rows[-251:]); dd = (1 - x["close"] / hi) * 100
+        mult = 3 if dd >= S["deep_dd_3x"] else 2 if dd >= S["deep_dd_2x"] else 1
+        hold *= mult
         # ربح زين: نبيع ربع الذهب لما السعر مولّع (RSI عالي) وربحك على متوسط التكلفة عالي، مرة كل 30 يوم كحد أقصى
         g = core_grams(); avg = core_cost() / g if g else 0; trim = 0
         recent = SALES and (date.today() - date.fromisoformat(SALES[-1]["date"])).days < S["trim_cooldown_days"]
@@ -80,7 +84,7 @@ def decide(sell_now=None):
         why = ("خبر كبير خلال 24 ساعة، نشتري أول يوم بعده" if due and event else
                "السعر مرتفع بقوة (RSI فوق 70)، نفوّت هالمرة" if due else f"الشراء الجاي يوم {nxt}")
         return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=0, hold_grams=hold, why=why,
-                    core_buy=0, pool=profit_pool(), buy_target=0, trim_grams=trim, avg_cost=avg)
+                    core_buy=0, pool=profit_pool(), buy_target=0, trim_grams=trim, avg_cost=avg, drawdown=dd, mult=mult)
     why = "خبر كبير خلال 24 ساعة" if event and x["buy_ok"] else "ما فيه إشارة شراء" if not x["buy_ok"] else "الصفقات المفتوحة ما تسمح"
     pool = profit_pool() + sum((sell_px - t["buy_price"]) * t["grams"] for t in sells)
     return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=buy, hold_grams=hold, why=why,

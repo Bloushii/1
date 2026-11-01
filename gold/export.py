@@ -9,6 +9,8 @@ os.makedirs(OUT, exist_ok=True)
 note = sys.argv[1] if len(sys.argv) > 1 else ""
 alert = sys.argv[2] if len(sys.argv) > 2 else ""
 x = g.decide(float(sys.argv[3]) if len(sys.argv) > 3 else None)
+if x.get("dar"):
+    g.save()  # نحفظ نسب الدار المعايرة على سعرهم الفعلي
 
 total = x["buy_grams"] + x["hold_grams"] + x["core_buy"]
 if x.get("trim_grams"):
@@ -30,7 +32,7 @@ decision = [{
     "action": action, "headline": text, "detail": detail, "news": note, "alert": alert,
     "score": x["score"], "rsi": round(x["rsi"], 1), "event_24h": "نعم" if x["event"] else "لا",
     "core_grams": g.core_grams(), "held_grams": g.core_grams() + sum(t["grams"] for t in g.open_lots()),
-    "spot_usd": round(x["close"], 1), "dealer_buy_kwd": round(x["buy_px"], 3), "dealer_sell_kwd": round(x["sell_px"], 3),
+    "spot_usd": round(x["close"], 1), "dealer_buy_kwd": round(x["buy_px"], 3), "dealer_sell_kwd": round(x["sell_px"], 3), "price_source": "dar" if x.get("dar") else "estimate",
     "sma200_usd": round(x["sma200"]), "support_usd": round(x["low20"]), "resistance_usd": round(x["high20"]),
 }]
 f = g.S["usd_kwd"] / g.OZ * (1 + g.S["dealer_premium_pct"] / 100)

@@ -49,10 +49,18 @@ def early_sell(t, sell_px, x, event):
 def decide(sell_now=None):
     # قرار اليوم بنفس قواعد المحاكاة. sell_now: سعر بيعك للدار الحين لو معروف
     import backtest as b
-    live = b.apply_live() if os.environ.get("GOLD_LIVE", "1") == "1" else None
-    x = b.today(); x["live"] = live; event = b.event_soon(date.today())
-    buy_px = x["close"] / OZ * S["usd_kwd"] * (1 + S["dealer_premium_pct"] / 100)
-    sell_px = sell_now or buy_px * (1 - S["spread_pct"] / 100)
+    import dar as darmod
+    dar = darmod.fetch() if os.environ.get("GOLD_LIVE", "1") == "1" else None
+    live = b.apply_live(dar["ounce"] if dar else None) if os.environ.get("GOLD_LIVE", "1") == "1" else None
+    x = b.today(); x["live"] = live; x["dar"] = dar; event = b.event_soon(date.today())
+    if dar:
+        # سعر الدار الفعلي، ونعاير النسب عليه عشان المستويات المحسوبة من الأونصة تطلع صح
+        S["dealer_premium_pct"] = round((dar["buy"] / (dar["ounce"] / OZ * S["usd_kwd"]) - 1) * 100, 3)
+        S["spread_pct"] = round((dar["buy"] - dar["sell"]) / dar["buy"] * 100, 3)
+        buy_px, sell_px = dar["buy"], sell_now or dar["sell"]
+    else:
+        buy_px = x["close"] / OZ * S["usd_kwd"] * (1 + S["dealer_premium_pct"] / 100)
+        sell_px = sell_now or buy_px * (1 - S["spread_pct"] / 100)
     sells = [t for t in open_lots() if sell_px >= target(t) or early_sell(t, sell_px, x, event)]
     lots = [t for t in open_lots() if t not in sells]
     ladder = not lots or buy_px <= min(t["buy_price"] for t in lots) * (1 - S["ladder_gap_pct"] / 100)
@@ -96,7 +104,8 @@ cmd, a = (sys.argv[1] if len(sys.argv) > 1 else "status") if __name__ == "__main
 
 if cmd == "signal":
     x = decide(float(a[0]) if a else None)
-    print(("سعر لحظي " if x.get("live") else "") + f"آخر سعر {x['date']}: {x['close']:,.1f}$ | الدار تقديراً: شراء {x['buy_px']:.3f} بيع {x['sell_px']:.3f}")
+    src = "سعر الدار الفعلي" if x.get("dar") else "الدار تقديراً"
+    print(("سعر لحظي " if x.get("live") else "") + f"آخر سعر {x['date']}: {x['close']:,.1f}$ | {src}: شراء {x['buy_px']:.3f} بيع {x['sell_px']:.3f}")
     print(f"المعدل الفني {x['score']}/10 | RSI {x['rsi']:.0f} | متوسط 50: {x['sma50']:,.0f} | متوسط 200: {x['sma200']:,.0f} | "
           f"دعم 20 يوم {x['low20']:,.0f} | مقاومة {x['high20']:,.0f} | خبر كبير خلال 24 ساعة: {'نعم' if x['event'] else 'لا'}")
     for t in x["sells"]:

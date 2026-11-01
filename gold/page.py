@@ -14,6 +14,7 @@ lo, hi = min(pts), max(pts)
 W, H = 600, 160
 path = " ".join(f"{'M' if i == 0 else 'L'}{i * W / (len(pts) - 1):.1f},{H - 10 - (v - lo) / (hi - lo or 1) * (H - 20):.1f}" for i, v in enumerate(pts))
 
+src = "(سعر الدار الفعلي)" if x.get("price_source") == "dar" else "(تقدير)"
 color = {"buy": "var(--ok)", "sell": "var(--bad)", "hold": "var(--warn)"}[x["action"]]
 alert = f'<section class="alert"><b>تنبيه خبر</b><p>{e(x["alert"])}</p></section>' if x.get("alert") else ""
 rows = "".join(
@@ -54,8 +55,8 @@ th, td {{ text-align:right; padding:6px 8px; border-bottom:1px solid var(--line)
   {alert}
   <section class="card decision"><p class="muted">قرار اليوم</p><p class="verdict">{e(x["headline"])}</p><p style="margin:0">{e(x["detail"])}</p></section>
   <section class="tiles">
-    <div class="tile"><span class="muted">شراؤك من الدار</span><span class="n">{x["dealer_buy_kwd"]:.3f}</span><span class="muted">د.ك للقرام (تقدير)</span></div>
-    <div class="tile"><span class="muted">بيعك للدار</span><span class="n">{x["dealer_sell_kwd"]:.3f}</span><span class="muted">د.ك للقرام (تقدير)</span></div>
+    <div class="tile"><span class="muted">شراؤك من الدار</span><span class="n">{x["dealer_buy_kwd"]:.3f}</span><span class="muted">د.ك للقرام {src}</span></div>
+    <div class="tile"><span class="muted">بيعك للدار</span><span class="n">{x["dealer_sell_kwd"]:.3f}</span><span class="muted">د.ك للقرام {src}</span></div>
     <div class="tile"><span class="muted">ذهبك كله</span><span class="n">{e(x["held_grams"])}</span><span class="muted">قرام</span></div>
     <div class="tile"><span class="muted">الربح المحقق</span><span class="n">{realized:.3f}</span><span class="muted">د.ك</span></div>
   </section>
@@ -65,7 +66,7 @@ th, td {{ text-align:right; padding:6px 8px; border-bottom:1px solid var(--line)
     <svg viewBox="0 0 {W} {H}" role="img" aria-label="رسم سعر الذهب بالدينار"><path d="{path}" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
     <p class="muted">من {lo:.3f} إلى {hi:.3f} د.ك · آخر سعر {pts[-1]:.3f}</p></section>
   <section class="card"><h2>صفقاتك</h2><div class="tw">{table}</div></section>
-  <p class="muted">تحليل آلي وليس نصيحة مالية مرخصة. الأسعار تقديرية، والسعر الفعلي هو سعر الدار وقت الشراء.</p>
+  <p class="muted">تحليل آلي وليس نصيحة مالية مرخصة. الأسعار من دار السبائك وقت الفحص، وممكن تتغير وقت الشراء.</p>
 </div>
 """
 open(os.path.join(OUT, "page.html"), "w").write(page)

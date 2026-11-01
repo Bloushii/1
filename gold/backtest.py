@@ -70,15 +70,16 @@ def dip_ok(i):
     trig = c <= min(r[2] for r in rows[i - 19:i + 1]) * (1 + S["support_pct"] / 100) or R[i] <= S["rsi_trigger"]
     return score(i) >= S["min_score"] and trig
 
-def apply_live():
-    # السعر اللحظي من gold-api.com يحل محل إغلاق آخر يوم (أو يضيف يوم اليوم). يرجع السعر أو None
+def apply_live(px=None):
+    # السعر اللحظي (من الدار أو gold-api.com) يحل محل إغلاق آخر يوم (أو يضيف يوم اليوم). يرجع السعر أو None
     import json, urllib.request
     from datetime import datetime, timezone
-    try:
-        with urllib.request.urlopen("https://api.gold-api.com/price/XAU", timeout=15) as r:
-            px = float(json.load(r)["price"])
-    except Exception:
-        return None
+    if px is None:
+        try:
+            with urllib.request.urlopen("https://api.gold-api.com/price/XAU", timeout=15) as r:
+                px = float(json.load(r)["price"])
+        except Exception:
+            return None
     d = datetime.now(timezone.utc).date()
     if d.weekday() >= 5:
         return px  # السوق مسكر، نخلي آخر إغلاق

@@ -209,3 +209,17 @@ elif cmd == "report":
     real = realized() + core_realized()
     if real:
         print(f"الربح اللي قبضته من البداية: {real:.3f} د.ك")
+    # مقارنة: لو اشتريت نفس المبلغ بـ DCA عادي (نفس الكمية كل 14 يوم بدون أي قواعد) من أول شروة
+    if CORE and sell_now and held:
+        import backtest as b
+        start = date.fromisoformat(min(c["date"] for c in CORE)); f = S["usd_kwd"] / OZ * (1 + S["dealer_premium_pct"] / 100)
+        days = [i for i, r in enumerate(b.rows) if r[0] >= start]
+        picks, last = [], None
+        for i in days:
+            if last is None or (b.rows[i][0] - last).days >= 14:
+                picks.append(b.C[i] * f); last = b.rows[i][0]
+        if picks:
+            paid = cost + sum(x["price"] * x["grams"] for x in SALES)  # كل اللي انصرف
+            grams = paid / (sum(picks) / len(picks))  # نفس المبلغ بمتوسط أسعار DCA العادي
+            print(f"مقارنة بـ DCA عادي بنفس المبلغ: كان عندك {grams:.1f} قرام قيمتها {grams * sell_now:.3f} د.ك "
+                  f"| استراتيجيتنا: {held * sell_now + real:.3f} د.ك → الفرق {held * sell_now + real - grams * sell_now:+.3f} د.ك")

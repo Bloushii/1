@@ -238,10 +238,10 @@ td.neg { color: var(--bad); font-weight: 600; }
         </div>
         <div class="split" id="splitBox" hidden>
           <div class="row2">
-            <div class="field"><label for="fCard2">الكرت الثاني</label><select id="fCard2"></select></div>
-            <div class="field"><label for="fAmt2">المبلغ على الكرت الثاني</label><input id="fAmt2" type="text" inputmode="decimal" autocomplete="off" placeholder="50"></div>
+            <div class="field"><label for="fAmt1">على الكرت الأول</label><input id="fAmt1" type="text" inputmode="decimal" autocomplete="off" placeholder="300"></div>
+            <div class="field"><label for="fCard2">الباقي على كرت</label><select id="fCard2"></select></div>
           </div>
-          <span class="splitnote" id="splitNote">الباقي من المبلغ ينحسب على الكرت الأول.</span>
+          <span class="splitnote" id="splitNote">المبلغ على الكرت الأول يكمل له الألف، والباقي ينحسب على الكرت الثاني.</span>
         </div>
         <div class="row2">
           <div class="field"><label for="fQty">العدد</label><input id="fQty" type="text" value="1" inputmode="numeric" autocomplete="off"></div>
@@ -435,27 +435,31 @@ const num = v => {
 $("fCard").innerHTML = `<option value="">— اختار —</option>` + CARDS.map(c => `<option value="${c.last4}">${c.name} · ${c.last4}</option>`).join("");
 $("fCard2").innerHTML = $("fCard").innerHTML;
 
-// Split payment: amt2 goes on card2, the rest of the total stays on the first card
+// Split payment: amt1 (prefilled with what completes the 1,000) stays on the first card, the rest of the total goes on card2
+let amt1Touched = false;
+const round3 = n => Math.round(n * 1000) / 1000;
+const formTotal = () => (num($("fQty").value) || 0) * (num($("fBuy").value) || 0);
 function splitInfo(card, total) {
   if ($("splitBox").hidden) return { card2: null, amt2: 0 };
-  const card2 = $("fCard2").value, amt2 = num($("fAmt2").value);
-  if (!card2 || card2 === card || !(amt2 > 0)) return { card2: null, amt2: 0 };
+  const card2 = $("fCard2").value, amt1 = num($("fAmt1").value), amt2 = round3(total - amt1);
+  if (!card2 || card2 === card || !(amt1 > 0) || !(amt2 > 0)) return { card2: null, amt2: 0 };
   return { card2, amt2 };
 }
-function closeSplit() { $("splitBox").hidden = true; $("fCard2").value = ""; $("fAmt2").value = ""; $("splitToggle").textContent = "+ قسّم الدفع على كرت ثاني"; }
+function fillAmt1() {
+  if ($("splitBox").hidden || amt1Touched) return;
+  const card = $("fCard").value;
+  $("fAmt1").value = card ? String(round3(Math.max(LIMIT - (stats().per[card] || 0), 0))) : "";
+}
+function closeSplit() { $("splitBox").hidden = true; $("fCard2").value = ""; $("fAmt1").value = ""; amt1Touched = false; $("splitToggle").textContent = "+ قسّم الدفع على كرت ثاني"; }
 $("splitToggle").addEventListener("click", () => {
   if (!$("splitBox").hidden) { closeSplit(); render(); return; }
-  $("splitBox").hidden = false;
+  $("splitBox").hidden = false; amt1Touched = false;
   $("splitToggle").textContent = "− إلغاء التقسيم";
-  // Prefill with what doesn't fit on the first card
-  const card = $("fCard").value, total = (num($("fQty").value) || 0) * (num($("fBuy").value) || 0);
-  if (card && total) {
-    const rem = Math.max(LIMIT - (stats().per[card] || 0), 0);
-    if (total > rem) $("fAmt2").value = String(Math.round((total - rem) * 1000) / 1000);
-  }
-  render(); $("fCard2").focus();
+  fillAmt1(); render(); $("fCard2").focus();
 });
-["fCard2","fAmt2"].forEach(id => $(id).addEventListener("input", () => render()));
+$("fAmt1").addEventListener("input", () => { amt1Touched = true; render(); });
+$("fCard2").addEventListener("input", () => render());
+["fCard","fQty","fBuy"].forEach(id => $(id).addEventListener("input", fillAmt1));
 ["fCard","fQty","fBuy","fSell"].forEach(id => $(id).addEventListener("input", () => render()));
 $("month").addEventListener("change", e => goMonth(e.target.value));
 $("mPrev").addEventListener("click", () => { const l = months(); const i = l.indexOf(month); if (i > 0) goMonth(l[i - 1]); });
@@ -463,6 +467,7 @@ $("mNext").addEventListener("click", () => { const l = months(); const i = l.ind
 $("cards").addEventListener("click", e => {
   const b = e.target.closest("[data-card]"); if (!b) return;
   $("fCard").value = b.dataset.card;
+  fillAmt1();
   const rem = LIMIT - (stats().per[b.dataset.card] || 0);
   render(); $("fBuy").focus({ preventScroll: window.innerWidth > 900 });
   if (rem <= 0) setMsg("هالكرت خلص حده لهالشهر.", "err"); else setMsg("");
@@ -477,10 +482,11 @@ $("form").addEventListener("submit", async e => {
   if (sell != null && !(sell >= 0)) return setMsg("سعر البيع غير صحيح.", "err");
   let card2 = null, amt2 = 0;
   if (!$("splitBox").hidden) {
-    card2 = $("fCard2").value; amt2 = num($("fAmt2").value);
+    card2 = $("fCard2").value;
+    const amt1 = num($("fAmt1").value); amt2 = round3(qty * buy - amt1);
     if (!card2) return setMsg("اختار الكرت الثاني.", "err");
     if (card2 === card) return setMsg("الكرت الثاني لازم يكون غير الأول.", "err");
-    if (!(amt2 > 0) || amt2 >= qty * buy) return setMsg("المبلغ على الكرت الثاني لازم يكون أقل من مجموع الشراء.", "err");
+    if (!(amt1 > 0) || !(amt2 > 0)) return setMsg("المبلغ على الكرت الأول لازم يكون أقل من مجموع الشراء.", "err");
   }
   if (!col) return setMsg("الحفظ غير متاح الحين. افتح الصفحة من claude.ai وأنت مسجل دخول.", "err");
   const doc = { month, card, qty, buy, sell, at: new Date().toISOString() };

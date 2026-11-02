@@ -14,3 +14,17 @@ python3 crypto/analyze.py BEAT --json
 - **فلتر BTC:** إذا BTC تحت 79,450 أو تحت EMA99 على 4h، تنخصم نقاط من أي Long.
 
 البيئة لازم تسمح بهالمواقع: `api.gateio.ws` و `api.bitget.com` و `api.mexc.com`.
+
+## عملات DEX على Solana (Phantom)
+
+```bash
+python3 crypto/dex.py GTA6CAT          # بالاسم
+python3 crypto/dex.py <عنوان العقد>    # أدق، لأن فيه توكنات مزيفة بنفس الاسم
+python3 crypto/dex.py --trending       # الترند الحين مع فلتر أمان سريع
+```
+
+- **الأمان:** صلاحية Mint و Freeze، و Honeypot، والسيولة، وتركّز أكبر 10 محافظ، ونسبة المطور، والعمر، والتوكنات المزيفة بنفس الاسم، والإعلانات المدفوعة (Boost).
+- **الشارت:** شموع 1h و15m من GeckoTerminal، والمؤشرات نفسها اللي في `analyze.py`.
+- **الحكم:** ⛔ خطر، أو ❌ لا تدخل، أو ⏳ انتظر، أو ✅ ادخل (بحجم صغير).
+
+البيئة لازم تسمح بهالمواقع: `api.dexscreener.com` و `api.geckoterminal.com`.

@@ -137,6 +137,9 @@ def analyze(q):
         warn.append(f"فيه {fakes} توكن ثاني بنفس الاسم: تأكد من العقد")
     if (main.get("boosts") or {}).get("active"):
         warn.append("عليها إعلان مدفوع (Boost) في DexScreener: الترند ممكن يكون مشترى")
+    vol24 = main.get("volume", {}).get("h24", 0)
+    if buys + sells > 1000 and vol24 / (buys + sells) < 10:
+        warn.append(f"متوسط الصفقة ${vol24 / (buys + sells):.1f} بس: بوتات تسوي حركة وهمية (Wash trading)")
     if sells and buys / sells < 0.8:
         warn.append(f"البيع أكثر من الشراء (24h: {buys:,} شراء / {sells:,} بيع)")
 

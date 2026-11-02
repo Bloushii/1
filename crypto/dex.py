@@ -169,6 +169,8 @@ def analyze(q):
         minus.append(f"طالعة {ch['h24']:.0f}% في 24 ساعة")
 
     sup, res = pivots(c1h[-200:], k=4)
+    s15, r15 = pivots(c15[-200:], k=4)  # بعد الضخ، الدعوم الحديثة تبين على 15m بس
+    sup, res = sup + s15, res + r15
     sups = [s[0] for s in cluster(sup) if s[0] < price * 0.99]
     ress = [r[0] for r in cluster(res) if r[0] > price * 1.02]
     support = max(sups) if sups else min(c["l"] for c in c1h[-48:])
@@ -181,9 +183,10 @@ def analyze(q):
         plus.append(f"قريب من الدعم ({dist_sup:.1f}%)")
     entry = price if dist_sup <= 6 else support * 1.01
     stop = support * 0.9  # الميم كوينز ذيولها طويلة، فالوقف تحت الدعم بـ 10%
-    targets = sorted(ress)[:3]
+    targets = sorted(r for r in ress if r > entry * 1.02)[:3]
     while len(targets) < 3:
-        targets.append(entry + (entry - stop) * (2 + len(targets)))
+        targets.append(max(targets + [entry]) + (entry - stop))
+    targets.sort()
     rr = (targets[0] - entry) / (entry - stop) if entry > stop else 0
 
     if hard:

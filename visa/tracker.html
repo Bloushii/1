@@ -121,6 +121,11 @@ button.danger { color: var(--bad); }
 button.danger:hover { background: color-mix(in srgb, var(--bad) 10%, transparent); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
+/* Keep the sign before the number (-5, +80) inside RTL text */
+td.pos, td.neg, .kpi .v { direction: ltr; unicode-bidi: isolate; text-align: right; }
+.split { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--sunken); }
+.split select, .split input { background: var(--surface); }
+.splitnote { font-size: .8rem; color: var(--muted); }
 .preview { font-size: .85rem; color: var(--muted); background: var(--sunken); border: 1px dashed var(--line); border-radius: 10px; padding: 12px; line-height: 1.7; }
 .preview b { color: var(--fg); font-family: var(--f-display); font-weight: 600; }
 .preview .w { display: block; margin-top: 6px; color: var(--warn); font-weight: 600; }
@@ -229,6 +234,14 @@ td.neg { color: var(--bad); font-weight: 600; }
         <div class="field">
           <label for="fCard">الكرت</label>
           <select id="fCard" required></select>
+          <button type="button" class="link" id="splitToggle" style="align-self:flex-start">+ قسّم الدفع على كرت ثاني</button>
+        </div>
+        <div class="split" id="splitBox" hidden>
+          <div class="row2">
+            <div class="field"><label for="fCard2">الكرت الثاني</label><select id="fCard2"></select></div>
+            <div class="field"><label for="fAmt2">المبلغ على الكرت الثاني</label><input id="fAmt2" type="text" inputmode="decimal" autocomplete="off" placeholder="50"></div>
+          </div>
+          <span class="splitnote" id="splitNote">الباقي من المبلغ ينحسب على الكرت الأول.</span>
         </div>
         <div class="row2">
           <div class="field"><label for="fQty">العدد</label><input id="fQty" type="text" value="1" inputmode="numeric" autocomplete="off"></div>
@@ -285,7 +298,7 @@ const monthLabel = m => { const [y, mo] = m.split("-"); return AR_MONTHS[+mo - 1
 const nextMonth = m => { let [y, mo] = m.split("-").map(Number); mo++; if (mo > 12) { mo = 1; y++; } return y + "-" + String(mo).padStart(2, "0"); };
 const nowMonth = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
 
-let purchases = [];   // {id, month, card, qty, buy, sell|null, at}
+let purchases = [];   // {id, month, card, qty, buy, sell|null, at, card2?, amt2} — amt2 of the total is charged to card2, the rest to card
 let db = null, col = null, canWrite = true;
 let month = nowMonth() < START ? START : nowMonth();
 let pendingDelete = null;
@@ -311,7 +324,10 @@ function stats(m = month) {
   const ps = purchases.filter(p => p.month === m);
   const per = {};
   for (const c of CARDS) per[c.last4] = 0;
-  for (const p of ps) per[p.card] = (per[p.card] || 0) + p.qty * p.buy;
+  for (const p of ps) {
+    per[p.card] = (per[p.card] || 0) + p.qty * p.buy - p.amt2;
+    if (p.card2) per[p.card2] = (per[p.card2] || 0) + p.amt2;
+  }
   let spent = 0, cb = 0;
   for (const c of CARDS) { spent += per[c.last4]; cb += Math.min(per[c.last4], LIMIT) * RATE; }
   const sellDiff = ps.filter(p => p.sell != null).reduce((a, p) => a + p.qty * (p.sell - p.buy), 0);
@@ -374,7 +390,9 @@ function renderLog(s) {
     const del = !canWrite ? "" : pendingDelete === p.id
       ? `<button class="link danger" data-del-yes="${p.id}">تأكيد الحذف</button><button class="link" data-del-no="1">إلغاء</button>`
       : `<button class="link danger" data-del="${p.id}">حذف</button>`;
-    return `<tr><td>${del}</td><td>${d}</td><td><span class="who">${cardName(p.card)}</span><span class="l4s">${p.card}</span></td>
+    return `<tr><td>${del}</td><td>${d}</td><td>${p.card2
+        ? `<span class="who">${cardName(p.card)}</span> ${fmt(total - p.amt2)} + <span class="who">${cardName(p.card2)}</span> ${fmt(p.amt2)}`
+        : `<span class="who">${cardName(p.card)}</span><span class="l4s">${p.card}</span>`}</td>
       <td>${p.qty}</td><td>${fmt(p.buy)}</td><td>${fmt(total)}</td><td>${sellCell}</td>${diffCell}</tr>`;
   }).join("");
 }
@@ -383,11 +401,15 @@ function renderPreview(s) {
   const card = $("fCard").value, qty = num($("fQty").value) || 0, buy = num($("fBuy").value) || 0;
   const sell = num($("fSell").value);
   if (!card) { $("preview").textContent = "اختار كرت وحط السعر."; return; }
-  const used = s.per[card] || 0, total = qty * buy, after = used + total;
+  const used = s.per[card] || 0, total = qty * buy;
+  const sp = splitInfo(card, total);
+  const after = used + total - sp.amt2;
   let html = `${cardName(card)}: وصلت <b>${fmt(used)}</b> من ${fmt(LIMIT)} · باقي <b>${fmt(Math.max(LIMIT - used, 0))}</b>`;
+  if (sp.card2 && total) html += `<br>الدفع: <b>${fmt(total - sp.amt2)}</b> على ${cardName(card)} + <b>${fmt(sp.amt2)}</b> على ${cardName(sp.card2)}`;
   if (sell != null && !isNaN(sell) && buy) {
     const loss = qty * (buy - sell);
-    const cbGain = (Math.min(after, LIMIT) - Math.min(used, LIMIT)) * RATE;
+    let cbGain = (Math.min(after, LIMIT) - Math.min(used, LIMIT)) * RATE;
+    if (sp.card2) { const u2 = s.per[sp.card2] || 0; cbGain += (Math.min(u2 + sp.amt2, LIMIT) - Math.min(u2, LIMIT)) * RATE; }
     html += `<br>خسارة البيع <b>${fmt(loss)}</b> · كاش باك هالشراء <b>${fmt(cbGain)}</b> · الصافي <b>${fmt(cbGain - loss)}</b>`;
   }
   $("preview").innerHTML = html;
@@ -411,6 +433,29 @@ const num = v => {
 };
 
 $("fCard").innerHTML = `<option value="">— اختار —</option>` + CARDS.map(c => `<option value="${c.last4}">${c.name} · ${c.last4}</option>`).join("");
+$("fCard2").innerHTML = $("fCard").innerHTML;
+
+// Split payment: amt2 goes on card2, the rest of the total stays on the first card
+function splitInfo(card, total) {
+  if ($("splitBox").hidden) return { card2: null, amt2: 0 };
+  const card2 = $("fCard2").value, amt2 = num($("fAmt2").value);
+  if (!card2 || card2 === card || !(amt2 > 0)) return { card2: null, amt2: 0 };
+  return { card2, amt2 };
+}
+function closeSplit() { $("splitBox").hidden = true; $("fCard2").value = ""; $("fAmt2").value = ""; $("splitToggle").textContent = "+ قسّم الدفع على كرت ثاني"; }
+$("splitToggle").addEventListener("click", () => {
+  if (!$("splitBox").hidden) { closeSplit(); render(); return; }
+  $("splitBox").hidden = false;
+  $("splitToggle").textContent = "− إلغاء التقسيم";
+  // Prefill with what doesn't fit on the first card
+  const card = $("fCard").value, total = (num($("fQty").value) || 0) * (num($("fBuy").value) || 0);
+  if (card && total) {
+    const rem = Math.max(LIMIT - (stats().per[card] || 0), 0);
+    if (total > rem) $("fAmt2").value = String(Math.round((total - rem) * 1000) / 1000);
+  }
+  render(); $("fCard2").focus();
+});
+["fCard2","fAmt2"].forEach(id => $(id).addEventListener("input", () => render()));
 ["fCard","fQty","fBuy","fSell"].forEach(id => $(id).addEventListener("input", () => render()));
 $("month").addEventListener("change", e => goMonth(e.target.value));
 $("mPrev").addEventListener("click", () => { const l = months(); const i = l.indexOf(month); if (i > 0) goMonth(l[i - 1]); });
@@ -430,14 +475,22 @@ $("form").addEventListener("submit", async e => {
   if (!(qty >= 1) || qty % 1) return setMsg("العدد لازم يكون ١ أو أكثر.", "err");
   if (!(buy > 0)) return setMsg("حط سعر شراء الجهاز.", "err");
   if (sell != null && !(sell >= 0)) return setMsg("سعر البيع غير صحيح.", "err");
+  let card2 = null, amt2 = 0;
+  if (!$("splitBox").hidden) {
+    card2 = $("fCard2").value; amt2 = num($("fAmt2").value);
+    if (!card2) return setMsg("اختار الكرت الثاني.", "err");
+    if (card2 === card) return setMsg("الكرت الثاني لازم يكون غير الأول.", "err");
+    if (!(amt2 > 0) || amt2 >= qty * buy) return setMsg("المبلغ على الكرت الثاني لازم يكون أقل من مجموع الشراء.", "err");
+  }
   if (!col) return setMsg("الحفظ غير متاح الحين. افتح الصفحة من claude.ai وأنت مسجل دخول.", "err");
   const doc = { month, card, qty, buy, sell, at: new Date().toISOString() };
+  if (card2) { doc.card2 = card2; doc.amt2 = amt2; }
   $("addBtn").disabled = true;
   try {
     lastAdded = await col.add(doc);
-    setMsg(`انضاف: ${qty} جهاز على كرت ${cardName(card)}.`, "ok");
+    setMsg(card2 ? `انضاف: ${qty} جهاز، ${fmt(qty * buy - amt2)} على ${cardName(card)} و ${fmt(amt2)} على ${cardName(card2)}.` : `انضاف: ${qty} جهاز على كرت ${cardName(card)}.`, "ok");
     $("msg").insertAdjacentHTML("beforeend", ` <button type="button" class="link danger" id="undoBtn">تراجع</button>`);
-    $("fBuy").value = ""; $("fSell").value = ""; $("fQty").value = "1";
+    $("fBuy").value = ""; $("fSell").value = ""; $("fQty").value = "1"; closeSplit();
   } catch (err) {
     setMsg(err && err.code === "invalid_argument" ? "ما عندك صلاحية تعديل." : "ما انحفظ، جرّب مرة ثانية.", "err");
   } finally { $("addBtn").disabled = false; }
@@ -480,7 +533,8 @@ render();
     purchases = snap.docs.map(d => {
       const x = d.data();
       return { id: d.id, month: String(x.month), card: String(x.card),
-        qty: Number(x.qty) || 0, buy: Number(x.buy) || 0, sell: x.sell == null ? null : Number(x.sell), at: String(x.at || "") };
+        qty: Number(x.qty) || 0, buy: Number(x.buy) || 0, sell: x.sell == null ? null : Number(x.sell), at: String(x.at || ""),
+        card2: x.card2 ? String(x.card2) : null, amt2: x.card2 ? Number(x.amt2) || 0 : 0 };
     });
     $("conn").textContent = `محفوظ · ${purchases.length} عملية`;
     $("conn").classList.add("live");

@@ -123,9 +123,6 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Keep the sign before the number (-5, +80) inside RTL text */
 td.pos, td.neg, .kpi .v { direction: ltr; unicode-bidi: isolate; text-align: right; }
-.split { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--sunken); }
-.split select, .split input { background: var(--surface); }
-.splitnote { font-size: .8rem; color: var(--muted); }
 .preview { font-size: .85rem; color: var(--muted); background: var(--sunken); border: 1px dashed var(--line); border-radius: 10px; padding: 12px; line-height: 1.7; }
 .preview b { color: var(--fg); font-family: var(--f-display); font-weight: 600; }
 .preview .w { display: block; margin-top: 6px; color: var(--warn); font-weight: 600; }
@@ -234,14 +231,6 @@ td.neg { color: var(--bad); font-weight: 600; }
         <div class="field">
           <label for="fCard">الكرت</label>
           <select id="fCard" required></select>
-          <button type="button" class="link" id="splitToggle" style="align-self:flex-start">+ قسّم الدفع على كرت ثاني</button>
-        </div>
-        <div class="split" id="splitBox" hidden>
-          <div class="row2">
-            <div class="field"><label for="fAmt1">على الكرت الأول</label><input id="fAmt1" type="text" inputmode="decimal" autocomplete="off" placeholder="300"></div>
-            <div class="field"><label for="fCard2">الباقي على كرت</label><select id="fCard2"></select></div>
-          </div>
-          <span class="splitnote" id="splitNote">المبلغ على الكرت الأول يكمل له الألف، والباقي ينحسب على الكرت الثاني.</span>
         </div>
         <div class="row2">
           <div class="field"><label for="fQty">العدد</label><input id="fQty" type="text" value="1" inputmode="numeric" autocomplete="off"></div>
@@ -298,7 +287,7 @@ const monthLabel = m => { const [y, mo] = m.split("-"); return AR_MONTHS[+mo - 1
 const nextMonth = m => { let [y, mo] = m.split("-").map(Number); mo++; if (mo > 12) { mo = 1; y++; } return y + "-" + String(mo).padStart(2, "0"); };
 const nowMonth = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
 
-let purchases = [];   // {id, month, card, qty, buy, sell|null, at, card2?, amt2} — amt2 of the total is charged to card2, the rest to card
+let purchases = [];   // {id, month, card, qty, buy, sell|null, at, card2?, amt2} — older split entries: amt2 of the total was charged to card2
 let db = null, col = null, canWrite = true;
 let month = nowMonth() < START ? START : nowMonth();
 let pendingDelete = null;
@@ -401,15 +390,11 @@ function renderPreview(s) {
   const card = $("fCard").value, qty = num($("fQty").value) || 0, buy = num($("fBuy").value) || 0;
   const sell = num($("fSell").value);
   if (!card) { $("preview").textContent = "اختار كرت وحط السعر."; return; }
-  const used = s.per[card] || 0, total = qty * buy;
-  const sp = splitInfo(card, total);
-  const after = used + total - sp.amt2;
+  const used = s.per[card] || 0, total = qty * buy, after = used + total;
   let html = `${cardName(card)}: وصلت <b>${fmt(used)}</b> من ${fmt(LIMIT)} · باقي <b>${fmt(Math.max(LIMIT - used, 0))}</b>`;
-  if (sp.card2 && total) html += `<br>الدفع: <b>${fmt(total - sp.amt2)}</b> على ${cardName(card)} + <b>${fmt(sp.amt2)}</b> على ${cardName(sp.card2)}`;
   if (sell != null && !isNaN(sell) && buy) {
     const loss = qty * (buy - sell);
-    let cbGain = (Math.min(after, LIMIT) - Math.min(used, LIMIT)) * RATE;
-    if (sp.card2) { const u2 = s.per[sp.card2] || 0; cbGain += (Math.min(u2 + sp.amt2, LIMIT) - Math.min(u2, LIMIT)) * RATE; }
+    const cbGain = (Math.min(after, LIMIT) - Math.min(used, LIMIT)) * RATE;
     html += `<br>خسارة البيع <b>${fmt(loss)}</b> · كاش باك هالشراء <b>${fmt(cbGain)}</b> · الصافي <b>${fmt(cbGain - loss)}</b>`;
   }
   $("preview").innerHTML = html;
@@ -433,33 +418,6 @@ const num = v => {
 };
 
 $("fCard").innerHTML = `<option value="">— اختار —</option>` + CARDS.map(c => `<option value="${c.last4}">${c.name} · ${c.last4}</option>`).join("");
-$("fCard2").innerHTML = $("fCard").innerHTML;
-
-// Split payment: amt1 (prefilled with what completes the 1,000) stays on the first card, the rest of the total goes on card2
-let amt1Touched = false;
-const round3 = n => Math.round(n * 1000) / 1000;
-const formTotal = () => (num($("fQty").value) || 0) * (num($("fBuy").value) || 0);
-function splitInfo(card, total) {
-  if ($("splitBox").hidden) return { card2: null, amt2: 0 };
-  const card2 = $("fCard2").value, amt1 = num($("fAmt1").value), amt2 = round3(total - amt1);
-  if (!card2 || card2 === card || !(amt1 > 0) || !(amt2 > 0)) return { card2: null, amt2: 0 };
-  return { card2, amt2 };
-}
-function fillAmt1() {
-  if ($("splitBox").hidden || amt1Touched) return;
-  const card = $("fCard").value;
-  $("fAmt1").value = card ? String(round3(Math.max(LIMIT - (stats().per[card] || 0), 0))) : "";
-}
-function closeSplit() { $("splitBox").hidden = true; $("fCard2").value = ""; $("fAmt1").value = ""; amt1Touched = false; $("splitToggle").textContent = "+ قسّم الدفع على كرت ثاني"; }
-$("splitToggle").addEventListener("click", () => {
-  if (!$("splitBox").hidden) { closeSplit(); render(); return; }
-  $("splitBox").hidden = false; amt1Touched = false;
-  $("splitToggle").textContent = "− إلغاء التقسيم";
-  fillAmt1(); render(); $("fCard2").focus();
-});
-$("fAmt1").addEventListener("input", () => { amt1Touched = true; render(); });
-$("fCard2").addEventListener("input", () => render());
-["fCard","fQty","fBuy"].forEach(id => $(id).addEventListener("input", fillAmt1));
 ["fCard","fQty","fBuy","fSell"].forEach(id => $(id).addEventListener("input", () => render()));
 $("month").addEventListener("change", e => goMonth(e.target.value));
 $("mPrev").addEventListener("click", () => { const l = months(); const i = l.indexOf(month); if (i > 0) goMonth(l[i - 1]); });
@@ -467,7 +425,6 @@ $("mNext").addEventListener("click", () => { const l = months(); const i = l.ind
 $("cards").addEventListener("click", e => {
   const b = e.target.closest("[data-card]"); if (!b) return;
   $("fCard").value = b.dataset.card;
-  fillAmt1();
   const rem = LIMIT - (stats().per[b.dataset.card] || 0);
   render(); $("fBuy").focus({ preventScroll: window.innerWidth > 900 });
   if (rem <= 0) setMsg("هالكرت خلص حده لهالشهر.", "err"); else setMsg("");
@@ -480,23 +437,14 @@ $("form").addEventListener("submit", async e => {
   if (!(qty >= 1) || qty % 1) return setMsg("العدد لازم يكون ١ أو أكثر.", "err");
   if (!(buy > 0)) return setMsg("حط سعر شراء الجهاز.", "err");
   if (sell != null && !(sell >= 0)) return setMsg("سعر البيع غير صحيح.", "err");
-  let card2 = null, amt2 = 0;
-  if (!$("splitBox").hidden) {
-    card2 = $("fCard2").value;
-    const amt1 = num($("fAmt1").value); amt2 = round3(qty * buy - amt1);
-    if (!card2) return setMsg("اختار الكرت الثاني.", "err");
-    if (card2 === card) return setMsg("الكرت الثاني لازم يكون غير الأول.", "err");
-    if (!(amt1 > 0) || !(amt2 > 0)) return setMsg("المبلغ على الكرت الأول لازم يكون أقل من مجموع الشراء.", "err");
-  }
   if (!col) return setMsg("الحفظ غير متاح الحين. افتح الصفحة من claude.ai وأنت مسجل دخول.", "err");
   const doc = { month, card, qty, buy, sell, at: new Date().toISOString() };
-  if (card2) { doc.card2 = card2; doc.amt2 = amt2; }
   $("addBtn").disabled = true;
   try {
     lastAdded = await col.add(doc);
-    setMsg(card2 ? `انضاف: ${qty} جهاز، ${fmt(qty * buy - amt2)} على ${cardName(card)} و ${fmt(amt2)} على ${cardName(card2)}.` : `انضاف: ${qty} جهاز على كرت ${cardName(card)}.`, "ok");
+    setMsg(`انضاف: ${qty} جهاز على كرت ${cardName(card)}.`, "ok");
     $("msg").insertAdjacentHTML("beforeend", ` <button type="button" class="link danger" id="undoBtn">تراجع</button>`);
-    $("fBuy").value = ""; $("fSell").value = ""; $("fQty").value = "1"; closeSplit();
+    $("fBuy").value = ""; $("fSell").value = ""; $("fQty").value = "1";
   } catch (err) {
     setMsg(err && err.code === "invalid_argument" ? "ما عندك صلاحية تعديل." : "ما انحفظ، جرّب مرة ثانية.", "err");
   } finally { $("addBtn").disabled = false; }

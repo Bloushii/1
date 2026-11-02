@@ -26,7 +26,8 @@ def profit_pool():
     # الأرباح اللي ما انشرى فيها ذهب للحين
     return realized() - sum(c["price"] * c["grams"] for c in CORE if c.get("source", "profit") == "profit")
 
-SALES = d.setdefault("core_sales", [])  # بيع من الذهب المحفوظ، بمتوسط التكلفة وقت البيع
+SALES = d.setdefault("core_sales", [])
+REBUY = d.setdefault("rebuy", {"cash": 0.0, "sellpx": None})  # كاش البيع ينطر نزول rebuy_pct% عشان نرجع نشتري فيه  # بيع من الذهب المحفوظ، بمتوسط التكلفة وقت البيع
 
 def core_grams():
     return sum(c["grams"] for c in CORE) - sum(x["grams"] for x in SALES)
@@ -94,11 +95,16 @@ def decide(sell_now=None):
         recent = SALES and (date.today() - date.fromisoformat(SALES[-1]["date"])).days < S["trim_cooldown_days"]
         if g and not recent and x["rsi"] >= S["trim_rsi"] and sell_px >= avg * (1 + S["trim_profit_pct"] / 100):
             trim = max(1, round(g * S["trim_frac"])); hold = 0  # نبيع نص الذهب
+        # الدمج مع فائز مسابقة 1,000 د.ك: كاش البيع يرجع ذهب لما ينزل السعر rebuy_pct% عن سعر البيع
+        rebuy = 0
+        if REBUY["cash"] > 1 and REBUY["sellpx"] and sell_px <= REBUY["sellpx"] * (1 - S.get("rebuy_pct", 12) / 100):
+            rebuy = math.floor(REBUY["cash"] / buy_px)
+        hold += rebuy
         nxt = date.fromordinal(date.fromisoformat(last["date"]).toordinal() + S["dca_every_days"]) if last else date.today()
         why = ("خبر كبير خلال 24 ساعة، نشتري أول يوم بعده" if due and event else
                "السعر مرتفع بقوة (RSI فوق 70)، نفوّت هالمرة" if due else f"الشراء الجاي يوم {nxt}")
         return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=0, hold_grams=hold, why=why,
-                    core_buy=0, pool=profit_pool(), buy_target=0, trim_grams=trim, avg_cost=avg, drawdown=dd, mult=mult)
+                    core_buy=0, pool=profit_pool(), buy_target=0, trim_grams=trim, avg_cost=avg, drawdown=dd, mult=mult, rebuy_grams=rebuy)
     why = "خبر كبير خلال 24 ساعة" if event and x["buy_ok"] else "ما فيه إشارة شراء" if not x["buy_ok"] else "الصفقات المفتوحة ما تسمح"
     pool = profit_pool() + sum((sell_px - t["buy_price"]) * t["grams"] for t in sells)
     return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=buy, hold_grams=hold, why=why,
@@ -147,6 +153,9 @@ elif cmd == "bought":
     for kind, n in (("buy", x["buy_grams"]), ("core", x["core_buy"]), ("hold", x["hold_grams"] + left)):
         n = min(n, left); left -= n
         if not n: continue
+        if kind == "hold" and x.get("rebuy_grams"):
+            used = min(n, x["rebuy_grams"]) * price; REBUY["cash"] = max(0.0, REBUY["cash"] - used)
+            if REBUY["cash"] < 1: REBUY["sellpx"] = None
         if kind == "buy":
             T.append({"id": len(T) + 1, "date": str(date.today()), "grams": n, "buy_price": price, "sell_price": None})
         else:
@@ -157,7 +166,9 @@ elif cmd == "sold":
     # بيع من الذهب المحفوظ: python3 gold/gold.py sold <السعر> <القرامات>
     price, g = float(a[0]), float(a[1]); avg = core_cost() / core_grams()
     SALES.append({"date": str(date.today()), "grams": g, "price": price, "avg": round(avg, 4)})
-    save(); print(f"✅ بعت {g:g} قرام × {price:.3f} | متوسط التكلفة {avg:.3f} | الربح {(price - avg) * g:+.3f} د.ك | باقي {core_grams():g} قرام")
+    REBUY["cash"] = REBUY["cash"] + price * g; REBUY["sellpx"] = price  # نخلي الكاش للرجوع
+    save(); print(f"الكاش {REBUY['cash']:.3f} د.ك ينطر سعر بيع للدار {price * (1 - S.get('rebuy_pct', 12) / 100):.3f} أو أقل عشان نرجع نشتري")
+    print(f"✅ بعت {g:g} قرام × {price:.3f} | متوسط التكلفة {avg:.3f} | الربح {(price - avg) * g:+.3f} د.ك | باقي {core_grams():g} قرام")
 elif cmd in ("core", "hold"):
     # core: قرام من الأرباح، hold: تخزين على الإشارة. الاثنين ما ينباعون
     price = float(a[0]); g = float(a[1]) if len(a) > 1 else 1

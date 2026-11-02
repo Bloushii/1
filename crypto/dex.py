@@ -38,6 +38,7 @@ def is_address(q):
 def find_pairs(q):
     if is_address(q):
         pairs = get_json(f"{DS}/latest/dex/tokens/{q}").get("pairs") or []
+        pairs = [p for p in pairs if p["baseToken"]["address"] == q]  # مو الحوض اللي عملتنا فيه هي الطرف الثاني
     else:
         pairs = get_json(f"{DS}/latest/dex/search?q={urllib.parse.quote(q)}").get("pairs") or []
         ql = q.lower().replace("usdt", "")

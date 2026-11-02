@@ -287,7 +287,7 @@ const monthLabel = m => { const [y, mo] = m.split("-"); return AR_MONTHS[+mo - 1
 const nextMonth = m => { let [y, mo] = m.split("-").map(Number); mo++; if (mo > 12) { mo = 1; y++; } return y + "-" + String(mo).padStart(2, "0"); };
 const nowMonth = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
 
-let purchases = [];   // {id, month, card, qty, buy, sell|null, at, card2?, amt2} — older split entries: amt2 of the total was charged to card2
+let purchases = [];   // {id, month, card, qty, buy, sell|null, at}
 let db = null, col = null, canWrite = true;
 let month = nowMonth() < START ? START : nowMonth();
 let pendingDelete = null;
@@ -313,10 +313,7 @@ function stats(m = month) {
   const ps = purchases.filter(p => p.month === m);
   const per = {};
   for (const c of CARDS) per[c.last4] = 0;
-  for (const p of ps) {
-    per[p.card] = (per[p.card] || 0) + p.qty * p.buy - p.amt2;
-    if (p.card2) per[p.card2] = (per[p.card2] || 0) + p.amt2;
-  }
+  for (const p of ps) per[p.card] = (per[p.card] || 0) + p.qty * p.buy;
   let spent = 0, cb = 0;
   for (const c of CARDS) { spent += per[c.last4]; cb += Math.min(per[c.last4], LIMIT) * RATE; }
   const sellDiff = ps.filter(p => p.sell != null).reduce((a, p) => a + p.qty * (p.sell - p.buy), 0);
@@ -379,9 +376,7 @@ function renderLog(s) {
     const del = !canWrite ? "" : pendingDelete === p.id
       ? `<button class="link danger" data-del-yes="${p.id}">تأكيد الحذف</button><button class="link" data-del-no="1">إلغاء</button>`
       : `<button class="link danger" data-del="${p.id}">حذف</button>`;
-    return `<tr><td>${del}</td><td>${d}</td><td>${p.card2
-        ? `<span class="who">${cardName(p.card)}</span> ${fmt(total - p.amt2)} + <span class="who">${cardName(p.card2)}</span> ${fmt(p.amt2)}`
-        : `<span class="who">${cardName(p.card)}</span><span class="l4s">${p.card}</span>`}</td>
+    return `<tr><td>${del}</td><td>${d}</td><td><span class="who">${cardName(p.card)}</span><span class="l4s">${p.card}</span></td>
       <td>${p.qty}</td><td>${fmt(p.buy)}</td><td>${fmt(total)}</td><td>${sellCell}</td>${diffCell}</tr>`;
   }).join("");
 }
@@ -487,8 +482,7 @@ render();
     purchases = snap.docs.map(d => {
       const x = d.data();
       return { id: d.id, month: String(x.month), card: String(x.card),
-        qty: Number(x.qty) || 0, buy: Number(x.buy) || 0, sell: x.sell == null ? null : Number(x.sell), at: String(x.at || ""),
-        card2: x.card2 ? String(x.card2) : null, amt2: x.card2 ? Number(x.amt2) || 0 : 0 };
+        qty: Number(x.qty) || 0, buy: Number(x.buy) || 0, sell: x.sell == null ? null : Number(x.sell), at: String(x.at || "") };
     });
     $("conn").textContent = `محفوظ · ${purchases.length} عملية`;
     $("conn").classList.add("live");

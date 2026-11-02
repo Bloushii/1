@@ -78,7 +78,7 @@ def xirr(flows):
         lo, hi = (m, hi) if npv(m) > 0 else (lo, m)
     return m
 
-def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=True, trim=(85, 40, .5), trail=None):
+def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=True, trim=(85, 30, .5), trail=None, rebuy=None):
     # يرجع العائد السنوي. الأيام أرقام تداول (كل يوم تداول = 1.4 يوم تقويم تقريباً)
     g = cost = 0.0; last = lastpx = lastsell = None; flows = []; peak = 0
     for i in range(i0, i1):
@@ -91,7 +91,13 @@ def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=Tru
             if trail and spx >= avg * (1 + trail[0] / 100) and spx <= peak * (1 - trail[1] / 100):
                 sell = max(sell, trail[2])  # وقف ربح متحرك: نزل من القمة بعد ربح واضح
             if sell and (lastsell is None or day - lastsell >= 30):
-                q = g * sell; cost -= avg * q; g -= q; flows.append((day, spx * q)); lastsell = day; peak = spx
+                q = g * sell; cost -= avg * q; g -= q; lastsell = day; peak = spx
+                if rebuy:
+                    reserve = reserve + spx * q if "reserve" in dir() else spx * q; sellpx = px  # نخلي الكاش ونرجع نشتري لما ينزل
+                else:
+                    flows.append((day, spx * q))
+        if rebuy and "reserve" in dir() and reserve > 0 and px <= sellpx * (1 - rebuy / 100):
+            g += reserve / px; cost += reserve; reserve = 0
         q = 0
         if last is None or day - last >= every:
             last = day; q = 0 if (skip_hot and I["rsi"][i] >= 70) else (2 if dip(I, C, i) else 1)
@@ -100,7 +106,8 @@ def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=Tru
         if q:
             q *= mult(I, C, i, scale, power); g += q; cost += q * px; lastpx = px; flows.append((day, -q * px))
     if not flows: return 0.0
-    return xirr(flows + [((i1 - 1) * 1.4, g * C[i1 - 1] * F * SP)])
+    left = reserve if rebuy and "reserve" in dir() else 0
+    return xirr(flows + [((i1 - 1) * 1.4, g * C[i1 - 1] * F * SP + left)])
 
 def synthetic(C, n_paths, years, seed=7, block=20):
     # مسارات وهمية: نلصق قطع 20 يوم من عوائد حقيقية بترتيب عشوائي، ونبدأها من آخر سعر

@@ -14,7 +14,7 @@ import urllib.error
 import urllib.parse
 from datetime import datetime, timezone
 
-from analyze import cluster, ema, fmt, get_json, macd, pivots, rsi, stoch_rsi
+from analyze import atr, cluster, ema, fmt, get_json, macd, pivots, rsi, stoch_rsi
 
 DS = "https://api.dexscreener.com"
 GT = "https://api.geckoterminal.com/api/v2/networks/solana"
@@ -58,11 +58,24 @@ def pick_token(pairs):
     return best, main, by_token[best], len(by_token) - 1
 
 
-def ohlcv(pool, tf, agg, limit):
-    d = gt_json(f"{GT}/pools/{pool}/ohlcv/{tf}?aggregate={agg}&limit={limit}&currency=usd")
+def ohlcv(pool, tf, agg, limit, token):
+    # token يضمن إن الشموع لسعر عملتنا، مو العملة الثانية في الحوض
+    d = gt_json(f"{GT}/pools/{pool}/ohlcv/{tf}?aggregate={agg}&limit={limit}&currency=usd&token={token}")
     rows = d["data"]["attributes"]["ohlcv_list"]
     return sorted((dict(t=int(r[0]), o=float(r[1]), h=float(r[2]), l=float(r[3]),
                         c=float(r[4]), v=float(r[5])) for r in rows), key=lambda x: x["t"])
+
+
+def to_4h(cs):
+    out = []
+    for c in cs:
+        b = c["t"] - c["t"] % 14400
+        if out and out[-1]["t"] == b:
+            o = out[-1]
+            o["h"], o["l"], o["c"], o["v"] = max(o["h"], c["h"]), min(o["l"], c["l"]), c["c"], o["v"] + c["v"]
+        else:
+            out.append(dict(c, t=b))
+    return out
 
 
 def tech(cs):
@@ -84,8 +97,9 @@ def analyze(q):
     addr, main, token_pairs, fakes = pick_token(pairs)
     info = gt_json(f"{GT}/tokens/{addr}/info")["data"]["attributes"]
     pool = main["pairAddress"]
-    c1h = ohlcv(pool, "hour", 1, 500)
-    c15 = ohlcv(pool, "minute", 15, 300)
+    c1h = ohlcv(pool, "hour", 1, 500, addr)
+    c15 = ohlcv(pool, "minute", 15, 300, addr)
+    c4h = to_4h(c1h)
 
     price = float(main.get("priceUsd") or 0)
     liq = sum((p.get("liquidity") or {}).get("usd", 0) for p in token_pairs)
@@ -143,7 +157,7 @@ def analyze(q):
     if sells and buys / sells < 0.8:
         warn.append(f"البيع أكثر من الشراء (24h: {buys:,} شراء / {sells:,} بيع)")
 
-    t1, t15 = tech(c1h), tech(c15)
+    t1, t15, t4 = tech(c1h), tech(c15), tech(c4h)
     score = 0
     plus, minus = [], []
     if t1:
@@ -161,6 +175,10 @@ def analyze(q):
         add(t1["stoch_k"] > 90, -1, f"StochRSI 1h فوق 90")
         add(t1["macd_hist"] > 0 and t1["macd_hist"] > t1["macd_prev"], 1, "MACD 1h إيجابي ويقوى")
         add(t1["macd_hist"] < 0 and t1["macd_hist"] < t1["macd_prev"], -1, "MACD 1h سلبي")
+        if t4:
+            add(t4["close"] > t4["ema25"], 1, "فوق EMA25 على 4h")
+            add(t4["close"] < t4["ema25"], -1, "تحت EMA25 على 4h (الاتجاه الأكبر هابط)")
+            add(t4["rsi"] > 75, -1, f"RSI 4h متشبع ({t4['rsi']:.0f})")
     if (ch.get("h24") or 0) > 100:
         score -= 2
         minus.append(f"طالعة {ch['h24']:.0f}% في 24 ساعة (ضخ)")
@@ -182,7 +200,9 @@ def analyze(q):
         score += 1
         plus.append(f"قريب من الدعم ({dist_sup:.1f}%)")
     entry = price if dist_sup <= 6 else support * 1.01
-    stop = support * 0.9  # الميم كوينز ذيولها طويلة، فالوقف تحت الدعم بـ 10%
+    # الوقف تحت الدعم بـ 1.5 ATR على 1h، بين 4% و12% من الدخول (الميم كوينز ذيولها طويلة)
+    stop = support - 1.5 * atr(c1h)
+    stop = min(max(stop, entry * 0.88), entry * 0.96)
     targets = sorted(r for r in ress if r > entry * 1.02)[:3]
     while len(targets) < 3:
         targets.append(max(targets + [entry]) + (entry - stop))

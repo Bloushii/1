@@ -186,13 +186,24 @@ def frame(cs):
 
 # ---------- التحليل ----------
 
-def btc_status():
-    cs = candles_gate("BTC", "4h", 200)
-    f = frame(cs)
-    ok = f["close"] > BTC_KEY_LEVEL and f["close"] > f["ema99"]
-    weak = f["close"] < f["ema25"]
-    return dict(price=f["close"], ema25=f["ema25"], ema99=f["ema99"], rsi=f["rsi"],
-                ok=ok and not weak, bad=not ok)
+def market_status():
+    """شرط السوق: ما ناخذ Long إلا إذا BTC قوي ومعه واحد على الأقل من ETH و SOL."""
+    coins = {}
+    for s in ("BTC", "ETH", "SOL"):
+        f4, fd = frame(candles_gate(s, "4h", 200)), frame(candles_gate(s, "1d", 200))
+        coins[s] = dict(price=f4["close"], ema25_4h=f4["ema25"], ema99_4h=f4["ema99"],
+                        ema25_1d=fd["ema25"], rsi=f4["rsi"])
+    b = coins["BTC"]
+    reasons = []
+    if b["price"] < BTC_KEY_LEVEL:
+        reasons.append(f"BTC {b['price']:,.0f} تحت {BTC_KEY_LEVEL:,}")
+    if b["price"] < b["ema99_4h"]:
+        reasons.append(f"BTC تحت EMA99 على 4h ({b['ema99_4h']:,.0f})")
+    if b["price"] < b["ema25_1d"]:
+        reasons.append(f"BTC تحت EMA25 على اليومي ({b['ema25_1d']:,.0f})")
+    if not any(coins[s]["price"] > coins[s]["ema25_4h"] for s in ("ETH", "SOL")):
+        reasons.append("ETH و SOL تحت EMA25 على 4h")
+    return dict(ok=not reasons, reasons=reasons, coins=coins, price=b["price"], rsi=b["rsi"])
 
 
 def analyze(sym):
@@ -221,7 +232,7 @@ def analyze(sym):
     rr = (targets[0] - entry) / risk if risk > 0 else 0
 
     fut = futures_stats(sym)
-    btc = btc_status()
+    btc = market_status()
 
     score, plus, minus = 0, [], []
 
@@ -252,10 +263,12 @@ def analyze(sym):
     add(chg24 > 25, -1, f"طالعة {chg24:.0f}% في 24 ساعة (مضخوخة)")
     if "funding" in fut:
         add(fut["funding"] > 0.0005, -1, f"التمويل عالي {fut['funding']*100:.3f}% (الكل داخل Long)")
-    add(btc["bad"], -2, f"BTC ضعيف ({btc['price']:,.0f} تحت {BTC_KEY_LEVEL:,} أو تحت EMA99 على 4h)")
-    add(btc["ok"], 1, f"BTC إيجابي ({btc['price']:,.0f})")
+    add(not btc["ok"], -2, "السوق ضعيف: " + "، ".join(btc["reasons"]))
+    add(btc["ok"], 1, f"السوق إيجابي (BTC {btc['price']:,.0f})")
 
-    if score >= 4 and rr >= 1.5 and not btc["bad"]:
+    if not btc["ok"]:  # شرط إلزامي: مهما كان شارت العملة، ما ندخل Long والسوق ضعيف
+        verdict = "❌ لا تدخل (السوق ضعيف)"
+    elif score >= 4 and rr >= 1.5:
         verdict = "✅ ادخل"
     elif score >= 1 or (score >= 0 and dist_sup > 4):
         verdict = "⏳ انتظر"
@@ -275,6 +288,13 @@ def analyze(sym):
 
 def fmt(x):
     return f"{x:,.2f}" if x >= 100 else f"{x:.4f}" if x >= 1 else f"{x:.6g}"
+
+
+def market_line(m):
+    c = m["coins"]
+    return (("السوق: ✅ " if m["ok"] else "السوق: ❌ ") +
+            " | ".join(f"{s} {fmt(c[s]['price'])}" for s in c) +
+            ("" if m["ok"] else "\n  " + "\n  ".join(m["reasons"])))
 
 
 def report(a):
@@ -297,7 +317,7 @@ def report(a):
           f"  الدخول {fmt(p['entry'])} | الوقف {fmt(p['stop'])} ({p['stop_pct']:.1f}%)",
           "  الأهداف: " + " / ".join(f"{fmt(t)} (+{pc:.0f}%)" for t, pc in zip(p["targets"], p["targets_pct"])),
           f"  المخاطرة للعائد على الهدف الأول: 1:{p['rr']:.1f}",
-          f"BTC: {fmt(a['btc']['price'])} | RSI 4h {a['btc']['rsi']:.0f}"]
+          market_line(a["btc"])]
     return "\n".join(L)
 
 

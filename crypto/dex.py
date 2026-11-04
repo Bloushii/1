@@ -14,7 +14,8 @@ import urllib.error
 import urllib.parse
 from datetime import datetime, timezone
 
-from analyze import atr, cluster, ema, fmt, get_json, macd, pivots, rsi, stoch_rsi
+from analyze import (atr, cluster, ema, fmt, get_json, macd, market_line, market_status,
+                     pivots, rsi, stoch_rsi)
 
 DS = "https://api.dexscreener.com"
 GT = "https://api.geckoterminal.com/api/v2/networks/solana"
@@ -210,8 +211,11 @@ def analyze(q):
     targets.sort()
     rr = (targets[0] - entry) / (entry - stop) if entry > stop else 0
 
+    market = market_status()
     if hard:
         verdict = "⛔ خطر: لا تقربها"
+    elif not market["ok"]:  # شرط إلزامي: الميم كوينز تنزل أكثر من السوق لما يضعف
+        verdict = "❌ لا تدخل (السوق ضعيف)"
     elif score >= 3 and len(warn) <= 2 and rr >= 1.5:
         verdict = "✅ ادخل (بحجم صغير)"
     elif score >= 0:
@@ -222,7 +226,7 @@ def analyze(q):
     return dict(symbol=main["baseToken"]["symbol"], name=main["baseToken"]["name"], address=addr,
                 dex=main["dexId"], url=main["url"], price=price, mcap=mcap, liquidity=liq,
                 age_h=age_h, change=ch, buys=buys, sells=sells, vol24=main.get("volume", {}).get("h24", 0),
-                gt_score=info.get("gt_score"), verdict=verdict, score=score,
+                gt_score=info.get("gt_score"), verdict=verdict, score=score, market=market,
                 hard=hard, warn=warn, good=good, plus=plus, minus=minus, t1h=t1, t15m=t15,
                 supports=sorted(sups, reverse=True)[:3], resistances=sorted(ress)[:3],
                 plan=dict(entry=entry, stop=stop, targets=targets, rr=rr,
@@ -253,6 +257,7 @@ def report(a):
           f"  الدخول {fmt(p['entry'])} | الوقف {fmt(p['stop'])} ({p['stop_pct']:.0f}%)",
           "  الأهداف: " + " / ".join(f"{fmt(t)} (+{pc:.0f}%)" for t, pc in zip(p["targets"], p["targets_pct"])),
           f"  المخاطرة للعائد: 1:{p['rr']:.1f}",
+          market_line(a["market"]),
           f"DexScreener: {a['url']}"]
     return "\n".join(L)
 

@@ -1,8 +1,8 @@
 {
   "settings": {
     "usd_kwd": 0.3075,
-    "dealer_premium_pct": 2.042,
-    "spread_pct": 0.713,
+    "dealer_premium_pct": 2.04,
+    "spread_pct": 0.711,
     "target_pct": 5.0,
     "max_open_lots": 15,
     "ladder_gap_pct": 1.5,

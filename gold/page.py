@@ -19,7 +19,7 @@ def kuwait_time(iso):
 # زر التحديث: يطلق فحص الذهب السريع (scheduled task) بالـ connector حق Claude Code Remote، والفحص يعيد نشر الصفحة
 REFRESH_JS = """<script>
 (function () {
-  var TRIGGER = "trig_018UhJhj6MBESRBMVQuT8w7m";
+  var TRIGGER = "trig_01RC5pRCfUTwcSAZkJiLfDk8";
   var btn = document.getElementById("refresh"), msg = document.getElementById("refresh-msg");
   var KEY = "gold-refresh-at", WAIT = 3 * 60 * 1000;
   function say(t) { msg.textContent = t; }

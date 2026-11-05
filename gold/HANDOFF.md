@@ -45,7 +45,7 @@
 | الاسم | الجدول | الرقم القديم |
 |---|---|---|
 | فحص الذهب اليومي | `CRON_TZ=Asia/Kuwait 17 19 * * 0-4` | trig_01433UGgDqgZ3w2vQEdchnQo |
-| فحص الذهب السريع (كل 4 ساعات، كل يوم، ويحدّث الصفحة الخفيفة) | `CRON_TZ=Asia/Kuwait 33 */4 * * *` | trig_018UhJhj6MBESRBMVQuT8w7m |
+| فحص الذهب السريع (كل 4 ساعات، كل يوم، ويحدّث الصفحة الخفيفة) | `CRON_TZ=Asia/Kuwait 33 */4 * * *` | **انتقل** إلى trig_01RC5pRCfUTwcSAZkJiLfDk8 (يفتح جلسة جديدة كل مرة، وزر "حدّث الحين" يطلقه). القديم trig_018UhJhj6MBESRBMVQuT8w7m موقّف. |
 | مراجعة استراتيجية الذهب الأسبوعية | `CRON_TZ=Asia/Kuwait 23 11 * * 6` | trig_018Wh4zKMKcs93TPu8QfBohB |
 | تقرير الذهب الشهري | `CRON_TZ=Asia/Kuwait 13 10 1 * *` | trig_01XXgBg35LGGoPJosCD2VyCR |
 

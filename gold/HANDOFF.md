@@ -80,16 +80,16 @@
 - الخفيفة (هذي اللي تنفتح على آيفون المستخدم): https://claude.ai/artifact/P8fppirDYGjeXHmPqedogU. انشر `gold/out/page.html` بـ `url` هذا. فيها زر "حدّث الحين": يطلق `fire_trigger` لفحص الذهب السريع عن طريق connector "Claude Code Remote" (capability `mcp`). لا ترسل `capabilities` لما تعيد النشر عشان ما تنمسح. ولو نقلت الفحص السريع لجلسة جديدة، غيّر `TRIGGER` بـ `gold/page.py` للرقم الجديد.
 - الكاملة (Dashboard): https://claude.ai/artifact/UriwTRxMmX414R4gkkW1ub. ارفع الملفات وحدّث `datasets` مثل ما مكتوب بـ SKILL.md.
 
-## الفحوصات المجدولة (لازم تنتقل للجلسة الجديدة)
-هذي تشتغل على الجلسة القديمة. بالجلسة الجديدة: سوّ `create_trigger` لكل وحدة بنفس الجدول والأمر، وبعدها احذف القديمة بـ `delete_trigger`.
-| الاسم | الجدول | الرقم القديم |
-|---|---|---|
-| فحص الذهب اليومي | `CRON_TZ=Asia/Kuwait 17 19 * * 0-4` | trig_01433UGgDqgZ3w2vQEdchnQo |
-| فحص الذهب السريع (كل 4 ساعات، كل يوم، ويحدّث الصفحة الخفيفة) | `CRON_TZ=Asia/Kuwait 33 */4 * * *` | **انتقل** إلى trig_01RC5pRCfUTwcSAZkJiLfDk8 (يفتح جلسة جديدة كل مرة، وزر "حدّث الحين" يطلقه). القديم trig_018UhJhj6MBESRBMVQuT8w7m موقّف. |
-| مراجعة استراتيجية الذهب الأسبوعية | `CRON_TZ=Asia/Kuwait 23 11 * * 6` | trig_018Wh4zKMKcs93TPu8QfBohB |
-| تقرير الذهب الشهري | `CRON_TZ=Asia/Kuwait 13 10 1 * *` | trig_01XXgBg35LGGoPJosCD2VyCR |
+## الفحوصات المجدولة (من 5 نوفمبر 2026)
+| الاسم | الجدول | الرقم | وين يشتغل |
+|---|---|---|---|
+| فحص الذهب اليومي | `CRON_TZ=Asia/Kuwait 17 19 * * 0-4` | trig_01NTb3UvJCeLMu9muRkEZFG7 | المحادثة الرئيسية |
+| فحص الذهب السريع (كل 4 ساعات، ويحدّث الصفحة الخفيفة، وزر "حدّث الحين" يطلقه) | `CRON_TZ=Asia/Kuwait 33 */4 * * *` | trig_01RC5pRCfUTwcSAZkJiLfDk8 | جلسة جديدة كل مرة (Opus، بدون push) |
+| مراجعة استراتيجية الذهب الأسبوعية | `CRON_TZ=Asia/Kuwait 23 11 * * 6` | trig_01R3vCv7KQijPoeaLh8wePxS | المحادثة الرئيسية |
+| تقرير الذهب الشهري | `CRON_TZ=Asia/Kuwait 13 10 1 * *` | trig_01DBYwActw4EZd2E9w7ZzXku | المحادثة الرئيسية |
 
-اقرا الأمر المحفوظ لكل وحدة بـ `get_trigger` وانسخه.
+القديمة (موقّفة، على الجلسة القديمة): trig_01433UGgDqgZ3w2vQEdchnQo، trig_018UhJhj6MBESRBMVQuT8w7m، trig_018Wh4zKMKcs93TPu8QfBohB، trig_01XXgBg35LGGoPJosCD2VyCR.
+لو انتقلت المحادثة الرئيسية لجلسة جديدة: سوّ `create_trigger` لكل وحدة بنفس الجدول والأمر (`get_trigger` يعطيك الأمر)، ووقّف القديمة.
 
 ## الشبكة
 مواقع مسموحة بإعدادات البيئة: `daralsabaek.com` و`api.daralsabaek.com` و`api.gold-api.com`. وراح `github.com` لـ clone بيانات الأسعار.

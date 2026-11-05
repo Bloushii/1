@@ -8,6 +8,47 @@ prices = json.load(open(os.path.join(OUT, "prices.json")))
 trades = list(csv.DictReader(open(os.path.join(OUT, "trades.csv"))))
 e = lambda v: html.escape(str(v))
 
+def kuwait_time(iso):
+    from datetime import datetime, timedelta
+    try:
+        t = datetime.fromisoformat(iso) + timedelta(hours=3)
+        return t.strftime("%Y-%m-%d %H:%M")
+    except ValueError:
+        return iso
+
+# زر التحديث: يطلق فحص الذهب السريع (scheduled task) بالـ connector حق Claude Code Remote، والفحص يعيد نشر الصفحة
+REFRESH_JS = """<script>
+(function () {
+  var TRIGGER = "trig_018UhJhj6MBESRBMVQuT8w7m";
+  var btn = document.getElementById("refresh"), msg = document.getElementById("refresh-msg");
+  var KEY = "gold-refresh-at", WAIT = 3 * 60 * 1000;
+  function say(t) { msg.textContent = t; }
+  function last() { try { return +localStorage.getItem(KEY) || 0; } catch (e) { return 0; } }
+  function mark() { try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {} }
+  if (Date.now() - last() < WAIT) { btn.disabled = true; say("طلبت تحديث قبل شوي، الصفحة بتتحدث لحالها خلال دقايق."); }
+  if (!window.claude || !window.claude.use) { btn.disabled = true; say("زر التحديث يشتغل بس لما تفتح الصفحة من Claude."); return; }
+  var mcpP = window.claude.use("mcp");
+  btn.addEventListener("click", function () {
+    btn.disabled = true; say("جاري طلب التحديث...");
+    mcpP.then(function (mcp) {
+      if (!mcp) { say("زر التحديث مو متاح بهالعرض. افتح الصفحة من تطبيق Claude."); btn.disabled = false; return; }
+      return mcp.callTool("Claude Code Remote", "fire_trigger",
+        { trigger_id: TRIGGER, text: "تحديث طلبه المستخدم من زر الصفحة: حدّث الصفحة الخفيفة الحين." })
+        .then(function () { mark(); say("✅ انطلب التحديث. الصفحة بتتحدث لحالها خلال دقيقة إلى 3 دقايق."); })
+        .catch(function (err) {
+          var c = err && err.code;
+          if (c === "not_in_manifest" || c === "approval_required" || c === "consent_required") say("لازم توافق على السماح للصفحة تشغّل الفحص. اضغط الزر مرة ثانية ووافق.");
+          else if (c === "server_not_connected" || c === "needs_reauth") say("الربط مع Claude Code Remote مو متصل. شيك عليه من claude.ai ← الإعدادات ← Connectors.");
+          else if (c === "server_unavailable" || c === "upstream_error") say("ما وصل الطلب أكيد. انتظر دقيقتين قبل ما تضغط مرة ثانية، يمكن انطلب.");
+          else say("ما قدرت أطلب التحديث الحين (" + (c || "خطأ") + "). جرب بعد شوي.");
+          btn.disabled = false;
+        });
+    });
+  });
+})();
+</script>
+"""
+
 # رسم السعر: خط SVG بسيط
 pts = [float(p["dealer_buy_kwd"]) for p in prices]
 lo, hi = min(pts), max(pts)
@@ -48,10 +89,15 @@ h2 {{ margin:0; font-size:1.05rem; }}
 svg {{ width:100%; height:auto; display:block; }}
 .tw {{ overflow-x:auto; }} table {{ width:100%; border-collapse:collapse; font-size:.9rem; font-variant-numeric:tabular-nums; }}
 th, td {{ text-align:right; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }} th {{ color:var(--muted); font-weight:600; font-size:.8rem; }}
+.refresh {{ display:grid; gap:6px; }}
+#refresh {{ font:inherit; font-weight:700; font-size:1rem; padding:12px 16px; border-radius:12px; border:1px solid var(--gold); background:var(--panel); color:var(--gold); cursor:pointer; }}
+#refresh:disabled {{ opacity:.55; cursor:default; }}
+#refresh:focus-visible {{ outline:2px solid var(--gold); outline-offset:2px; }}
 .ok {{ color:var(--ok); }} .bad {{ color:var(--bad); }}
 </style>
 <div class="wrap">
-  <header><h1>قرار الذهب اليومي</h1><p class="muted">ذهب عيار 24 بأسعار دار السبائك · آخر فحص {e(x["checked_at"].replace("T", " ").replace("+00:00", " UTC"))}</p></header>
+  <header><h1>قرار الذهب اليومي</h1><p class="muted">ذهب عيار 24 بأسعار دار السبائك · آخر فحص {e(kuwait_time(x["checked_at"]))} بتوقيت الكويت</p></header>
+  <section class="refresh"><button id="refresh" type="button">🔄 حدّث الحين</button><p class="muted" id="refresh-msg">يشغّل فحص جديد بأسعار الدار الحالية، والصفحة تتحدث لحالها خلال دقيقة إلى 3 دقايق.</p></section>
   {alert}
   <section class="card decision"><p class="muted">قرار اليوم</p><p class="verdict">{e(x["headline"])}</p><p style="margin:0">{e(x["detail"])}</p></section>
   <section class="tiles">
@@ -68,6 +114,6 @@ th, td {{ text-align:right; padding:6px 8px; border-bottom:1px solid var(--line)
   <section class="card"><h2>صفقاتك</h2><div class="tw">{table}</div></section>
   <p class="muted">تحليل آلي وليس نصيحة مالية مرخصة. الأسعار من دار السبائك وقت الفحص، وممكن تتغير وقت الشراء.</p>
 </div>
-"""
+""" + REFRESH_JS
 open(os.path.join(OUT, "page.html"), "w").write(page)
 print("ok")

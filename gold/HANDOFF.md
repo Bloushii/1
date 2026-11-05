@@ -37,7 +37,7 @@
 | `.claude/skills/gold/SKILL.md` | خطوات الفحص اليومي (`/gold`) |
 
 ## الصفحات
-- الخفيفة (هذي اللي تنفتح على آيفون المستخدم): https://claude.ai/artifact/P8fppirDYGjeXHmPqedogU. انشر `gold/out/page.html` بـ `url` هذا.
+- الخفيفة (هذي اللي تنفتح على آيفون المستخدم): https://claude.ai/artifact/P8fppirDYGjeXHmPqedogU. انشر `gold/out/page.html` بـ `url` هذا. فيها زر "حدّث الحين": يطلق `fire_trigger` لفحص الذهب السريع عن طريق connector "Claude Code Remote" (capability `mcp`). لا ترسل `capabilities` لما تعيد النشر عشان ما تنمسح. ولو نقلت الفحص السريع لجلسة جديدة، غيّر `TRIGGER` بـ `gold/page.py` للرقم الجديد.
 - الكاملة (Dashboard): https://claude.ai/artifact/UriwTRxMmX414R4gkkW1ub. ارفع الملفات وحدّث `datasets` مثل ما مكتوب بـ SKILL.md.
 
 ## الفحوصات المجدولة (لازم تنتقل للجلسة الجديدة)

@@ -25,26 +25,34 @@ REFRESH_JS = """<script>
   function say(t) { msg.textContent = t; }
   function last() { try { return +localStorage.getItem(KEY) || 0; } catch (e) { return 0; } }
   function mark() { try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {} }
-  if (Date.now() - last() < WAIT) { btn.disabled = true; say("طلبت تحديث قبل شوي، الصفحة بتتحدث لحالها خلال دقايق."); }
-  if (!window.claude || !window.claude.use) { btn.disabled = true; say("زر التحديث يشتغل بس لما تفتح الصفحة من Claude."); return; }
+  // نكتب الوقت بصيغة يفهمها Safari القديم: 2026-11-05T01:32:00Z
+  var raw = document.querySelector(".refresh").getAttribute("data-checked").replace("+00:00", "");
+  if (raw.length === 16) raw += ":00";
+  var checked = Date.parse(raw + "Z") || 0;
+  var recent = Date.now() - last() < WAIT;
+  if (recent) { btn.disabled = true; say("انطلب تحديث قبل شوي، الصفحة بتتحدث لحالها خلال دقايق."); }
+  if (!window.claude || !window.claude.use) { btn.disabled = true; say("التحديث يشتغل بس لما تفتح الصفحة من Claude."); return; }
   var mcpP = window.claude.use("mcp");
-  btn.addEventListener("click", function () {
-    btn.disabled = true; say("جاري طلب التحديث...");
+  function refresh(auto) {
+    btn.disabled = true; say(auto ? "الأسعار أقدم من نص ساعة، جاري تحديثها..." : "جاري طلب التحديث...");
     mcpP.then(function (mcp) {
-      if (!mcp) { say("زر التحديث مو متاح بهالعرض. افتح الصفحة من تطبيق Claude."); btn.disabled = false; return; }
+      if (!mcp) { say("التحديث مو متاح بهالعرض. افتح الصفحة من تطبيق Claude."); btn.disabled = false; return; }
       return mcp.callTool("Claude Code Remote", "fire_trigger",
-        { trigger_id: TRIGGER, text: "تحديث طلبه المستخدم من زر الصفحة: حدّث الصفحة الخفيفة الحين." })
+        { trigger_id: TRIGGER, text: "تحديث طلبه المستخدم من الصفحة: حدّث الصفحة الخفيفة الحين." })
         .then(function () { mark(); say("✅ انطلب التحديث. الصفحة بتتحدث لحالها خلال دقيقة إلى 3 دقايق."); })
         .catch(function (err) {
           var c = err && err.code;
-          if (c === "not_in_manifest" || c === "approval_required" || c === "consent_required") say("لازم توافق على السماح للصفحة تشغّل الفحص. اضغط الزر مرة ثانية ووافق.");
+          if (c === "not_in_manifest" || c === "approval_required" || c === "consent_required") say("لازم توافق إن الصفحة تشغّل الفحص. اضغط الزر ووافق.");
           else if (c === "server_not_connected" || c === "needs_reauth") say("الربط مع Claude Code Remote مو متصل. شيك عليه من claude.ai ← الإعدادات ← Connectors.");
           else if (c === "server_unavailable" || c === "upstream_error") say("ما وصل الطلب أكيد. انتظر دقيقتين قبل ما تضغط مرة ثانية، يمكن انطلب.");
           else say("ما قدرت أطلب التحديث الحين (" + (c || "خطأ") + "). جرب بعد شوي.");
           btn.disabled = false;
         });
     });
-  });
+  }
+  btn.addEventListener("click", function () { refresh(false); });
+  // أول ما تنفتح الصفحة: لو الأسعار أقدم من 30 دقيقة وما انطلب تحديث آخر 3 دقايق، نحدّث لحالنا
+  if (!recent && Date.now() - checked > 30 * 60 * 1000) refresh(true);
 })();
 </script>
 """
@@ -97,7 +105,7 @@ th, td {{ text-align:right; padding:6px 8px; border-bottom:1px solid var(--line)
 </style>
 <div class="wrap">
   <header><h1>قرار الذهب اليومي</h1><p class="muted">ذهب عيار 24 بأسعار دار السبائك · آخر فحص {e(kuwait_time(x["checked_at"]))} بتوقيت الكويت</p></header>
-  <section class="refresh"><button id="refresh" type="button">🔄 حدّث الحين</button><p class="muted" id="refresh-msg">يشغّل فحص جديد بأسعار الدار الحالية، والصفحة تتحدث لحالها خلال دقيقة إلى 3 دقايق.</p></section>
+  <section class="refresh" data-checked="{e(x["checked_at"])}"><button id="refresh" type="button">🔄 حدّث الحين</button><p class="muted" id="refresh-msg">يشغّل فحص جديد بأسعار الدار الحالية، والصفحة تتحدث لحالها خلال دقيقة إلى 3 دقايق.</p></section>
   {alert}
   <section class="card decision"><p class="muted">قرار اليوم</p><p class="verdict">{e(x["headline"])}</p><p style="margin:0">{e(x["detail"])}</p></section>
   <section class="tiles">

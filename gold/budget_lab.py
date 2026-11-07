@@ -173,6 +173,27 @@ STRATS["DCA عادي 3 شهر"] = S_dca(3)
 for trim, rb in (((85, 40, .5), 10), ((80, 30, .25), 8), ((85, 50, .5), 15)):
     STRATS[f"مرة وحدة + بيع {trim[0]}/{trim[1]}/{int(trim[2]*100)}% ورجوع -{rb}%"] = S_lump_trim(trim, rb)
 
+def S_lump_reserve_trim(first, steps, cap, trim, rebuy):
+    # فكرة 7 نوفمبر: نجمع أحسن فكرتين — جزء كبير على طول + الباقي على درجات النزول — مع البيع وقت الربح الكبير والرجوع بالكاش
+    def plan(I, C, i, t, st, cash, g, cost):
+        if t == 0: return 0, BUDGET * first
+        sp = bp = 0
+        dd = 1 - C[i] / I["hi250"][i]
+        while st["k"] < len(steps) and dd >= steps[st["k"]]:
+            bp += BUDGET * (1 - first) / len(steps); st["k"] += 1
+        if t >= cap * 21 and st["k"] < len(steps): bp = cash; st["k"] = len(steps)
+        if g > 0 and I["rsi"][i] >= trim[0] and C[i] * SP >= cost / g * (1 + trim[1] / 100) \
+                and (st["lastsell"] is None or t - st["lastsell"] >= 21):
+            sp = trim[2]; st["lastsell"] = t; st["sellpx"] = C[i]
+        if st.get("sellpx") and C[i] <= st["sellpx"] * (1 - rebuy / 100):
+            bp = max(bp, cash); st["sellpx"] = None
+        return sp, bp
+    return ("acc", plan)
+
+for first, steps, cap in ((.7, (.03, .06), 4), (.8, (.03, .06), 4), (.6, (.03, .06, .09), 6)):
+    for trim, rb in (((80, 30, .25), 8), ((85, 30, .5), 12)):
+        STRATS[f"جديد: {int(first*100)}% + نزول {'/'.join(str(int(x*100)) for x in steps)} + بيع {trim[0]}/{trim[1]}/{int(trim[2]*100)}% رجوع -{rb}%"] = S_lump_reserve_trim(first, steps, cap, trim, rb)
+
 def run(name, C, I, i0, i1):
     kind, f = STRATS[name]
     return run_weight(C, I, i0, i1, f) if kind == "w" else run_accum(C, I, i0, i1, f)

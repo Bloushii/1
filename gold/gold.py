@@ -97,7 +97,7 @@ def decide(sell_now=None):
             trim = max(1, round(g * S["trim_frac"])); hold = 0  # نبيع نص الذهب
         # الدمج مع فائز مسابقة 1,000 د.ك: كاش البيع يرجع ذهب لما ينزل السعر rebuy_pct% عن سعر البيع
         rebuy = 0
-        if REBUY["cash"] > 1 and REBUY["sellpx"] and sell_px <= REBUY["sellpx"] * (1 - S.get("rebuy_pct", 12) / 100):
+        if S.get("rebuy_pct") and REBUY["cash"] > 1 and REBUY["sellpx"] and sell_px <= REBUY["sellpx"] * (1 - S["rebuy_pct"] / 100):
             rebuy = math.floor(REBUY["cash"] / buy_px)
         hold += rebuy
         nxt = date.fromordinal(date.fromisoformat(last["date"]).toordinal() + S["dca_every_days"]) if last else date.today()
@@ -166,8 +166,11 @@ elif cmd == "sold":
     # بيع من الذهب المحفوظ: python3 gold/gold.py sold <السعر> <القرامات>
     price, g = float(a[0]), float(a[1]); avg = core_cost() / core_grams()
     SALES.append({"date": str(date.today()), "grams": g, "price": price, "avg": round(avg, 4)})
-    REBUY["cash"] = REBUY["cash"] + price * g; REBUY["sellpx"] = price  # نخلي الكاش للرجوع
-    save(); print(f"الكاش {REBUY['cash']:.3f} د.ك ينطر سعر بيع للدار {price * (1 - S.get('rebuy_pct', 12) / 100):.3f} أو أقل عشان نرجع نشتري")
+    if S.get("rebuy_pct"):  # الرجوع موقّف من 7 نوفمبر 2026 (rebuy_pct=0): يضعّف DCA المستمر
+        REBUY["cash"] = REBUY["cash"] + price * g; REBUY["sellpx"] = price
+        save(); print(f"الكاش {REBUY['cash']:.3f} د.ك ينطر سعر بيع للدار {price * (1 - S['rebuy_pct'] / 100):.3f} أو أقل عشان نرجع نشتري")
+    else:
+        save(); print(f"كاش البيع {price * g:.3f} د.ك لك: استخدمه للمشتريات الجاية بدال فلوس جديدة")
     print(f"✅ بعت {g:g} قرام × {price:.3f} | متوسط التكلفة {avg:.3f} | الربح {(price - avg) * g:+.3f} د.ك | باقي {core_grams():g} قرام")
 elif cmd in ("core", "hold"):
     # core: قرام من الأرباح، hold: تخزين على الإشارة. الاثنين ما ينباعون

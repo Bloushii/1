@@ -66,6 +66,9 @@ def mult(I, C, i, scale, power=12):
     if scale == "vol":  # يشتري أكثر وقت التذبذب العالي (خوف السوق) تحت المتوسط
         base = max(.25, min(4, (I["s200"][i] / C[i]) ** power))
         return base * (1.5 if I["vol20"][i] > .015 else 1)
+    if scale == "smadeep":  # فكرة 7 نوفمبر: ميل المتوسط × زيادة لما ينزل بقوة عن قمة سنة (خوف أكبر = شراء أكثر)
+        base = max(.25, min(4, (I["s200"][i] / C[i]) ** power)); dd = 1 - C[i] / I["hi250"][i]
+        return min(6, base * (2 if dd >= .2 else 1.5 if dd >= .1 else 1))
     if scale == "momo":  # عكس: يشتري أكثر لما الاتجاه صاعد (متوسط 50 فوق 200)
         return 2 if I["s50"][i] > I["s200"][i] else .5
 
@@ -80,7 +83,7 @@ def xirr(flows):
 
 def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=True, trim=(85, 30, .5), trail=None, rebuy=None):
     # يرجع العائد السنوي. الأيام أرقام تداول (كل يوم تداول = 1.4 يوم تقويم تقريباً)
-    g = cost = 0.0; last = lastpx = lastsell = None; flows = []; peak = 0
+    g = cost = 0.0; last = lastpx = lastsell = sellpx = None; flows = []; peak = 0; reserve = 0.0
     for i in range(i0, i1):
         day = i * 1.4; px = C[i] * F; spx = px * SP
         if g > 0:
@@ -93,10 +96,10 @@ def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=Tru
             if sell and (lastsell is None or day - lastsell >= 30):
                 q = g * sell; cost -= avg * q; g -= q; lastsell = day; peak = spx
                 if rebuy:
-                    reserve = reserve + spx * q if "reserve" in dir() else spx * q; sellpx = px  # نخلي الكاش ونرجع نشتري لما ينزل
+                    reserve += spx * q; sellpx = px  # نخلي الكاش ونرجع نشتري لما ينزل
                 else:
                     flows.append((day, spx * q))
-        if rebuy and "reserve" in dir() and reserve > 0 and px <= sellpx * (1 - rebuy / 100):
+        if rebuy and reserve > 0 and px <= sellpx * (1 - rebuy / 100):
             g += reserve / px; cost += reserve; reserve = 0
         q = 0
         if last is None or day - last >= every:
@@ -106,7 +109,7 @@ def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=Tru
         if q:
             q *= mult(I, C, i, scale, power); g += q; cost += q * px; lastpx = px; flows.append((day, -q * px))
     if not flows: return 0.0
-    left = reserve if rebuy and "reserve" in dir() else 0
+    left = reserve
     return xirr(flows + [((i1 - 1) * 1.4, g * C[i1 - 1] * F * SP + left)])
 
 def synthetic(C, n_paths, years, seed=7, block=20):
@@ -122,7 +125,15 @@ def synthetic(C, n_paths, years, seed=7, block=20):
     return paths
 
 CANDIDATES = {
-    "الحالية": dict(),
+    "الحالية (رجوع 12%)": dict(rebuy=12),
+    "بدون رجوع": dict(),
+    "جديد: ميل × نزول عميق": dict(scale="smadeep", rebuy=12),
+    "جديد: بيع 80/30/ربع + رجوع 8%": dict(trim=(80, 30, .25), rebuy=8),
+    "جار: بيع 85/30/نص + رجوع 10%": dict(rebuy=10),
+    "جار: بيع 85/30/نص + رجوع 15%": dict(rebuy=15),
+    "جار: بيع 85/25/نص + رجوع 12%": dict(trim=(85, 25, .5), rebuy=12),
+    "جار: بيع 85/35/نص + رجوع 12%": dict(trim=(85, 35, .5), rebuy=12),
+    "قوة 15": dict(power=15, rebuy=12),
     "DCA عادي": dict(scale="none", dipbuy=False, skip_hot=False, trim=None),
     "قوة 6 (السابقة)": dict(power=6),
     "قوة 9": dict(power=9),
@@ -161,10 +172,12 @@ if __name__ == "__main__":
     ledger = json.load(open(os.path.join(HERE, "ledger.json")))
     ps = date.fromisoformat(ledger["settings"].get("paper_start", str(date.today())))
     i_ps = next((i for i, (d, _) in enumerate(H) if d >= ps), len(H))
-    fwd = {n: (run(C, I, i_ps, len(C), **kw) if len(C) - i_ps >= 5 else None) for n, kw in CANDIDATES.items()}
+    days_fwd = len(C) - i_ps
+    # العائد السنوي على أيام قليلة يطلع أرقام خيالية (+271%)، فما نحسبه إلا بعد 60 يوم تداول
+    fwd = {n: (run(C, I, i_ps, len(C), **kw) if days_fwd >= 60 else None) for n, kw in CANDIDATES.items()}
     print(f"{'الاستراتيجية':<26} | تاريخ سنتين: وسط/أسوأ10 | وهمي 3 سنين ({n_paths}): وسط/أسوأ10/ربح | مستقبل من {ps}")
     rank = sorted(CANDIDATES, key=lambda n: -(hist[n]["med"] + hist[n]["p10"] + syn[n]["med"] + syn[n]["p10"]))
     for n in rank:
         h, s, f = hist[n], syn[n], fwd[n]
         print(f"{n:<26} | {h['med']*100:+6.1f}% / {h['p10']*100:+6.1f}% | {s['med']*100:+6.1f}% / {s['p10']*100:+6.1f}% / {s['win']*100:3.0f}% | "
-              + (f"{f*100:+.1f}%/سنة" if f is not None else "ينتظر أيام كفاية"))
+              + (f"{f*100:+.1f}%/سنة" if f is not None else f"ينتظر ({days_fwd} من 60 يوم)"))

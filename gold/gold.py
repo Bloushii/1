@@ -54,7 +54,7 @@ def decide(sell_now=None):
     dar = darmod.fetch() if os.environ.get("GOLD_LIVE", "1") == "1" else None
     live = b.apply_live(dar["ounce"] if dar else None) if os.environ.get("GOLD_LIVE", "1") == "1" else None
     x = b.today(); x["live"] = live; x["dar"] = dar; event = b.event_soon(date.today())
-    x["calendar_gap"] = date.today() > b.FOMC_COMPLETE_UNTIL  # مواعيد الفيدرالي ناقصة، لازم نشيك يدوياً
+    x["calendar_gap"] = date.today() > min(b.FOMC_COMPLETE_UNTIL, b.CPI_COMPLETE_UNTIL)  # مواعيد الفيدرالي أو التضخم ناقصة، لازم نشيك يدوياً
     if dar:
         # سعر الدار الفعلي، ونعاير النسب عليه عشان المستويات المحسوبة من الأونصة تطلع صح
         S["dealer_premium_pct"] = round((dar["buy"] / (dar["ounce"] / OZ * S["usd_kwd"]) - 1) * 100, 3)

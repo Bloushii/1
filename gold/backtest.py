@@ -18,11 +18,17 @@ FOMC = """2021-11-03 2021-12-15 2022-01-26 2022-03-16 2022-05-04 2022-06-15 2022
 # 2027 كاملة (8 اجتماعات، يوم القرار). من مصادر ثانوية متطابقة لأن federalreserve.gov محجوب من الجلسة (7 نوفمبر 2026). المواعيد مبدئية لين يأكدها الاجتماع اللي قبلها
 FOMC_COMPLETE_UNTIL = date(2027, 12, 31)
 FOMC = {date.fromisoformat(x) for x in FOMC}
+# تقرير التضخم الأمريكي CPI (8:30 الصبح بتوقيت نيويورك = 4:30 أو 3:30 العصر بتوقيت الكويت). من جدول BLS (انضاف 10 نوفمبر 2026)
+# القديم ما انضاف، فالمحاكاة التاريخية ما تتأثر. الفلتر يشتغل على القرارات الحية بس
+CPI = {date.fromisoformat(x) for x in """2026-11-10 2026-12-10
+2027-01-13 2027-02-11 2027-03-10 2027-04-13 2027-05-12 2027-06-10 2027-07-14 2027-08-11 2027-09-14 2027-10-14 2027-11-10 2027-12-10""".split()}
+CPI_COMPLETE_UNTIL = date(2027, 12, 31)
 
 def event_soon(d):
-    # قرار الفيدرالي (يطلع بالليل بتوقيت الكويت) أو الوظائف (أول جمعة بالشهر) خلال 24 ساعة
+    # قرار الفيدرالي (يطلع بالليل بتوقيت الكويت) أو الوظائف (أول جمعة بالشهر) أو التضخم CPI خلال 24 ساعة
     nfp = d.day <= 7 and d.weekday() == 4
-    return d in FOMC or (d + timedelta(1)) in FOMC or nfp or (d.weekday() == 3 and (d + timedelta(1)).day <= 7)
+    cpi = d in CPI or (d + timedelta(1)) in CPI
+    return d in FOMC or (d + timedelta(1)) in FOMC or nfp or (d.weekday() == 3 and (d + timedelta(1)).day <= 7) or cpi
 
 rows, O = [], []
 for r in csv.DictReader(open(os.path.join(HERE, "data", "xauusd_1d.csv"))):

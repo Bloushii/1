@@ -313,7 +313,8 @@ function stats(m = month) {
   const ps = purchases.filter(p => p.month === m);
   const per = {};
   for (const c of CARDS) per[c.last4] = 0;
-  for (const p of ps) per[p.card] = (per[p.card] || 0) + p.qty * p.buy;
+  // Round to fils so decimals like 18.3 + 325.9 + ... land exactly on 1000, not 999.9999999
+  for (const p of ps) per[p.card] = Math.round(((per[p.card] || 0) + p.qty * p.buy) * 1000) / 1000;
   let spent = 0, cb = 0;
   for (const c of CARDS) { spent += per[c.last4]; cb += Math.min(per[c.last4], LIMIT) * RATE; }
   const sellDiff = ps.filter(p => p.sell != null).reduce((a, p) => a + p.qty * (p.sell - p.buy), 0);

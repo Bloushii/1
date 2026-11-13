@@ -38,10 +38,15 @@ description: يقارن سعر جهاز (غالباً ايفون أو سامسو
 - لسامسونق لا تحط كلمة "galaxy" في البحث: اكس سايت يكتب "Samsung S25 Ultra" بدونها فما يطلع شي. استخدم مثلاً `s25 ultra 256`.
 
 ## صفحة "وين أرخص" (الصفحة اللي على الشاشة الرئيسية)
-- الرابط: https://claude.ai/artifact/QhLoe8VnMyRApdJ6tis6Qg
-- الأسعار محفوظة في قاعدة بيانات الصفحة: مجموعة `devices` (مستند لكل جهاز+سعة، فيه `xcite`/`eureka`/`best` = `{price, color}`) و`meta/info` فيه `updatedAt`.
-- لما المستخدم يقول "حدّث الأسعار":
-  1. اقرأ مجموعة `requests` بأداة ArtifactData وضيف الأجهزة المطلوبة للبحث.
-  2. شغّل compare.js لكل بحث **واحد واحد مو مع بعض** (بيست يرجع فاضي لو تشغلهم مع بعض)، واحفظ كل نتيجة JSON في مجلد.
-  3. `node .claude/skills/price-compare/normalize.js <المجلد>` يطلع صف لكل جهاز+سعة (يتجاهل النسخ اليابانية والأمريكية والإكسسوارات). لو فيه موديل جديد، ضيفه في دالة `model()`.
-  4. اكتب الصفوف في `devices` وحدّث `meta/info.updatedAt` بدفعة وحدة (batch) مع `if_version` للمستندات الموجودة، وامسح الطلبات اللي خلصت.
+- الرابط: https://claude.ai/artifact/QhLoe8VnMyRApdJ6tis6Qg (ملف الصفحة: نسخة منها في هالمحادثة؛ للتعديل اقراها بأداة Artifact أول).
+- البيانات في قاعدة بيانات الصفحة:
+  - `prices/all` = `{ rows: { <id>: {brand, model, storage, xcite, eureka, best} }, updatedAt, stats, problems }` و كل محل `{price, color}` أو `null`.
+  - `meta/refresh` = حالة التحديث: `requested` / `running` / `done` / `error`.
+  - `requests` = أجهزة كتبها المستخدم في مربع "أضف" (حقل `text`).
+- زر "حدّث الأسعار" في الصفحة يفتح جلسة Claude Code على السحابة (عن طريق موصل Claude Code Remote → `create_session`) على هالفرع، والجلسة تشغّل `update.js` وتحفظ النتيجة في `prices/all`.
+- لما المستخدم يقول "حدّث الأسعار" في المحادثة، سوّ نفس خطوات الزر:
+  1. اقرأ `requests` وحوّل كل طلب لكلمة بحث إنجليزية قصيرة (بدون "galaxy").
+  2. `node .claude/skills/price-compare/update.js /tmp/prices.json "<بحث إضافي>" ...` (ياخذ ٥-٨ دقايق، يشغّل المواقع واحد واحد ويعيد المحاولة لو محل رجع فاضي).
+  3. `set` على `prices/all` من الملف (مع `if_version`)، وامسح الطلبات اللي خلصت، وحدّث `meta/refresh`.
+- `update.js` يخلي بس الأجهزة اللي لها سعر في اكس سايت أو بيست (عشان فيه مقارنة)، أو اللي المستخدم طلبها بالاسم. يتجاهل الإكسسوارات، والنسخ اليابانية/الأمريكية، واللي مكتوب عليها "OUT OF STOCK" في بيست.
+- لو نزل موديل جديد (مثلاً ايفون 19)، ضيف كلمة بحثه في `QUERIES` داخل `update.js`.

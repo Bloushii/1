@@ -4,7 +4,8 @@ const { chromium } = require('playwright');
 
 const STORES = [
   { name: 'X-cite',          url: q => `https://www.xcite.com/search?q=${q}` },
-  { name: 'Eureka',          url: q => `https://www.eureka.com.kw/products/search?q=${q}` },
+  // يوريكا: ما عندهم رابط بحث مباشر، نكتب في مربع البحث بالصفحة الرئيسية
+  { name: 'Eureka',          url: () => 'https://www.eureka.com.kw/', typeInSearchBox: true },
   { name: 'Best Al-Yousifi', url: q => `https://best.com.kw/en/search/${q}` },
 ];
 // يدعم "359.900 KD" (اكس سايت) و "KD 349.900" (بيست)
@@ -16,7 +17,16 @@ async function scrape(browser, store, query) {
   const page = await browser.newPage({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36' });
   try {
     await page.goto(store.url(encodeURIComponent(query)), { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(8000);
+    if (store.typeInSearchBox) {
+      await page.waitForTimeout(5000);
+      const box = page.locator('input[type="search"]:visible, input[placeholder*="earch" i]:visible').first();
+      await box.click();
+      await box.pressSequentially(query, { delay: 80 });
+      await box.press('Enter');
+      await page.waitForTimeout(12000);
+    } else {
+      await page.waitForTimeout(8000);
+    }
     const lines = (await page.evaluate(() => document.body.innerText)).split('\n').map(s => s.trim()).filter(Boolean);
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     const items = [];

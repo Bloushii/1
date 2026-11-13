@@ -1,8 +1,8 @@
 {
   "settings": {
     "usd_kwd": 0.3075,
-    "dealer_premium_pct": 2.085,
-    "spread_pct": 0.754,
+    "dealer_premium_pct": 2.018,
+    "spread_pct": 0.753,
     "target_pct": 5.0,
     "max_open_lots": 15,
     "ladder_gap_pct": 1.5,
@@ -111,6 +111,12 @@
       "date": "2026-10-30",
       "grams": 2.0,
       "price": 39.521,
+      "source": "hold"
+    },
+    {
+      "date": "2026-11-13",
+      "grams": 8.0,
+      "price": 39.164,
       "source": "hold"
     }
   ],

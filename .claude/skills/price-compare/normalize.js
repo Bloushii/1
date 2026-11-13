@@ -26,7 +26,12 @@ function storage(t) {
   const all = [...t.matchAll(/\b(128|256|512)\s*GB\b/gi)].map(x => x[1]);
   return all.length ? all[all.length - 1] + 'GB' : null;
 }
-const color = t => (t.split(/\s[-–]\s/).pop() || '').replace(/[.,]$/, '').trim();
+function color(t) {
+  const parts = t.split(/\s[-–]\s/);
+  // يوريكا ما يحط شرطة قبل اللون: ناخذ اللي بعد آخر "Ram" أو "5G" أو "GB"
+  const c = parts.length > 1 ? parts.pop() : (t.split(/\b(?:ram|5g|gb|tb)\b/i).pop() || '');
+  return c.replace(/[.,]$/, '').trim();
+}
 const rows = {};
 for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.json'))) {
   for (const r of JSON.parse(fs.readFileSync(path.join(dir, f))).results) {

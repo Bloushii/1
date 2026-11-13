@@ -4,8 +4,8 @@ const { chromium } = require('playwright');
 
 const STORES = [
   { name: 'X-cite',          url: q => `https://www.xcite.com/search?q=${q}` },
-  // يوريكا: ما عندهم رابط بحث مباشر، نكتب في مربع البحث بالصفحة الرئيسية
-  { name: 'Eureka',          url: () => 'https://www.eureka.com.kw/', typeInSearchBox: true },
+  // يوريكا: البحث عندهم ما يشتغل من هنا، فنفتح قسم الهواتف الذكية ونفلتر على الماركة
+  { name: 'Eureka',          url: () => 'https://www.eureka.com.kw/products/browse/phones/mobile-phones/smart-phones', eurekaBrowse: true },
   { name: 'Best Al-Yousifi', url: q => `https://best.com.kw/en/search/${q}` },
 ];
 // يدعم "359.900 KD" (اكس سايت) و "KD 349.900" (بيست)
@@ -17,13 +17,20 @@ async function scrape(browser, store, query) {
   const page = await browser.newPage({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36' });
   try {
     await page.goto(store.url(encodeURIComponent(query)), { waitUntil: 'domcontentloaded', timeout: 60000 });
-    if (store.typeInSearchBox) {
-      await page.waitForTimeout(5000);
-      const box = page.locator('input[type="search"]:visible, input[placeholder*="earch" i]:visible').first();
-      await box.click();
-      await box.pressSequentially(query, { delay: 80 });
-      await box.press('Enter');
-      await page.waitForTimeout(12000);
+    if (store.eurekaBrowse) {
+      await page.waitForTimeout(9000);
+      // اسم الماركة في فلتر يوريكا: IPHONE أو SAMSUNG أو غيرها
+      const q = query.toLowerCase();
+      const brand = /iphone|apple|ايفون/.test(q) ? 'IPHONE' : /samsung|galaxy|سامسونق|سامسونج/.test(q) ? 'SAMSUNG' : q.split(/\s+/)[0].toUpperCase();
+      const label = page.locator('label', { hasText: new RegExp(`^\\s*${brand}\\s*$`, 'i') }).first();
+      if (await label.count()) { await label.click(); await page.waitForTimeout(5000); }
+      // زر "View More" يجيب 24 جهاز زيادة كل مرة
+      for (let k = 0; k < 15; k++) {
+        const more = page.locator('button.viewMore:visible');
+        if (!(await more.count())) break;
+        await more.first().click().catch(() => {});
+        await page.waitForTimeout(2500);
+      }
     } else {
       await page.waitForTimeout(8000);
     }

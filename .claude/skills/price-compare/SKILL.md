@@ -43,7 +43,7 @@ description: يقارن سعر جهاز (غالباً ايفون أو سامسو
   - `prices/all` = `{ rows: { <id>: {brand, model, storage, xcite, eureka, best} }, updatedAt, stats, problems }` و كل محل `{price, color}` أو `null`.
   - `meta/refresh` = حالة التحديث: `requested` / `running` / `done` / `error`.
   - `requests` = أجهزة كتبها المستخدم في مربع "أضف" (حقل `text`).
-- زر "حدّث الأسعار" في الصفحة يفتح جلسة Claude Code على السحابة (عن طريق موصل Claude Code Remote → `create_session`) على هالفرع، والجلسة تشغّل `update.js` وتحفظ النتيجة في `prices/all`.
+- زر "حدّث الأسعار" في الصفحة: يفتح جلسة Claude Code على السحابة (موصل Claude Code Remote → `create_session`) على هالفرع، والجلسة تشغّل `update.js` بس (مسموح بدون موافقة في `.claude/settings.json`) وما تلمس بيانات الصفحة. `update.js` يطبع سطر `PRICES_JSON_BEGIN{...}PRICES_JSON_END`، والصفحة تقراه من سجل الجلسة (`list_events`) كل ٣٠ ثانية وتحفظه في `prices/all` بنفسها، وتمسح الطلبات، وتأرشف الجلسة. لو الزر فشل، `meta/refresh` فيه `code` و`detail` للسبب.
 - لما المستخدم يقول "حدّث الأسعار" في المحادثة، سوّ نفس خطوات الزر:
   1. اقرأ `requests` وحوّل كل طلب لكلمة بحث إنجليزية قصيرة (بدون "galaxy").
   2. `node .claude/skills/price-compare/update.js /tmp/prices.json "<بحث إضافي>" ...` (ياخذ ٥-٨ دقايق، يشغّل المواقع واحد واحد ويعيد المحاولة لو محل رجع فاضي).

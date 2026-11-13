@@ -48,6 +48,9 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
   const stats = { xcite: 0, eureka: 0, best: 0 };
   for (const r of Object.values(rows)) for (const k of Object.keys(stats)) if (r[k]) stats[k]++;
   for (const [k, n] of Object.entries(stats)) if (!n) problems.push(`${k}: no prices at all`);
-  fs.writeFileSync(out, JSON.stringify({ rows, updatedAt: Date.now(), stats, problems }, null, 1));
+  const result = { rows, updatedAt: Date.now(), stats, problems };
+  fs.writeFileSync(out, JSON.stringify(result, null, 1));
   console.log(JSON.stringify({ devices: Object.keys(rows).length, stats, problems }, null, 1));
+  // سطر واحد تقراه صفحة "وين أرخص" من سجل الجلسة وتحفظه بنفسها
+  console.log('PRICES_JSON_BEGIN' + JSON.stringify(result) + 'PRICES_JSON_END');
 })();

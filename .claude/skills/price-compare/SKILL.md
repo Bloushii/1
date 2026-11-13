@@ -29,4 +29,5 @@ description: يقارن سعر جهاز (غالباً ايفون أو سامسو
 ## ملاحظات
 - الأسعار من صفحات البحث وقت السؤال، وممكن تتغير.
 - المواقع تحتاج تكون مسموحة في إعدادات الشبكة للبيئة:
-  `www.xcite.com`, `www.eureka.com.kw`, `cdnimage.eureka.com.kw`, `best.com.kw`, `mrflex.best.com.kw`.
+  `www.xcite.com`, `www.eureka.com.kw`, `cdnimage.eureka.com.kw`, `crm.eureka.com.kw`, `5gphmaa239-dsn.algolia.net`, `cdn.jsdelivr.net`, `cdnjs.cloudflare.com`, `best.com.kw`, `mrflex.best.com.kw`.
+- يوريكا: نتايج البحث للحين ما تجربت بنجاح (الصفحة تطلع فاضية). إذا رجعت فاضية قول للمستخدم إن يوريكا ما انقرت.

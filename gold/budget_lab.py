@@ -194,6 +194,10 @@ for first, steps, cap in ((.7, (.03, .06), 4), (.8, (.03, .06), 4), (.6, (.03, .
     for trim, rb in (((80, 30, .25), 8), ((85, 30, .5), 12)):
         STRATS[f"جديد: {int(first*100)}% + نزول {'/'.join(str(int(x*100)) for x in steps)} + بيع {trim[0]}/{trim[1]}/{int(trim[2]*100)}% رجوع -{rb}%"] = S_lump_reserve_trim(first, steps, cap, trim, rb)
 
+# فكرة 14 نوفمبر: نفس الفائز (80% + نزول 3/6 + بيع) بس بدون رجوع: هل الرجوع هو اللي يفيد بمبلغ مرة وحدة؟
+for first in (.8, .7):
+    STRATS[f"جديد 14 نوفمبر: {int(first*100)}% + نزول 3/6 + بيع 85/30/50% بدون رجوع"] = S_lump_reserve_trim(first, (.03, .06), 4, (85, 30, .5), 10**6)
+
 def run(name, C, I, i0, i1):
     kind, f = STRATS[name]
     return run_weight(C, I, i0, i1, f) if kind == "w" else run_accum(C, I, i0, i1, f)

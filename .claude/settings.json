@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node .claude/skills/price-compare/compare.js:*)",
+      "Bash(node .claude/skills/price-compare/update.js:*)",
+      "Bash(git fetch origin claude/focused-lamport-hnxvx9:*)",
+      "Bash(git checkout FETCH_HEAD -- .claude/skills/price-compare .claude/settings.json)",
+      "ArtifactData"
+    ]
+  }
+}

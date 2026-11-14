@@ -58,9 +58,9 @@ def score(I, C, i):
 def dip(I, C, i):
     return score(I, C, i) >= 5 and (C[i] <= I["low20"][i] * 1.03 or I["rsi"][i] <= 35)
 
-def mult(I, C, i, scale, power=12, cap=4):
+def mult(I, C, i, scale, power=12, cap=S.get("max_mult", 4)):
     if scale == "none": return 1
-    if scale == "sma": return max(.25, min(cap, (I["s200"][i] / C[i]) ** power))  # cap: أعلى مضاعف (الحي 4)
+    if scale == "sma": return max(.25, min(cap, (I["s200"][i] / C[i]) ** power))  # cap: أعلى مضاعف (الحي max_mult = 8 من 14 نوفمبر)
     if scale == "deep":
         dd = 1 - C[i] / I["hi250"][i]; return 3 if dd >= .2 else 2 if dd >= .1 else 1
     if scale == "vol":  # يشتري أكثر وقت التذبذب العالي (خوف السوق) تحت المتوسط
@@ -81,7 +81,7 @@ def xirr(flows):
         lo, hi = (m, hi) if npv(m) > 0 else (lo, m)
     return m
 
-def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=True, trim=(85, 30, .5), trail=None, rebuy=None, cap=4):
+def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=True, trim=(85, 30, .5), trail=None, rebuy=None, cap=S.get("max_mult", 4)):
     # يرجع العائد السنوي. الأيام أرقام تداول (كل يوم تداول = 1.4 يوم تقويم تقريباً)
     g = cost = 0.0; last = lastpx = lastsell = sellpx = None; flows = []; peak = 0; reserve = 0.0
     for i in range(i0, i1):
@@ -125,11 +125,11 @@ def synthetic(C, n_paths, years, seed=7, block=20):
     return paths
 
 CANDIDATES = {
-    "الحالية (بدون رجوع، من 7 نوفمبر)": dict(),
+    "الحالية (بدون رجوع، حد 8)": dict(),
     "القديمة (رجوع 12%)": dict(rebuy=12),
-    "جديد 14 نوفمبر: حد المضاعف 6": dict(cap=6),
-    "جديد 14 نوفمبر: حد المضاعف 3": dict(cap=3),
-    "جديد 14 نوفمبر: حد المضاعف 8": dict(cap=8),
+    "حد المضاعف 4 (قبل 14 نوفمبر)": dict(cap=4),
+    "حد المضاعف 6": dict(cap=6),
+    "حد المضاعف 10": dict(cap=10),
     "جديد: ميل × نزول عميق": dict(scale="smadeep", rebuy=12),
     "جديد: بيع 80/30/ربع + رجوع 8%": dict(trim=(80, 30, .25), rebuy=8),
     "جار: بيع 85/30/نص + رجوع 10%": dict(rebuy=10),

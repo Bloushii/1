@@ -86,7 +86,7 @@ def decide(sell_now=None):
         hi = max(r[1] for r in b.rows[-251:]); dd = (1 - x["close"] / hi) * 100
         if S.get("scale") == "sma":
             # الفائز بالمسابقة (gold/tournament.py): الكمية تكبر كل ما نزل السعر تحت متوسط 200 يوم وتصغر فوقه
-            mult = max(.25, min(4, (x["sma200"] / x["close"]) ** S["sma_power"]))
+            mult = max(.25, min(S.get("max_mult", 4), (x["sma200"] / x["close"]) ** S["sma_power"]))  # max_mult: 8 من 14 نوفمبر 2026
         else:
             mult = 3 if dd >= S["deep_dd_3x"] else 2 if dd >= S["deep_dd_2x"] else 1
         hold = max(1, round(hold * mult)) if hold else 0

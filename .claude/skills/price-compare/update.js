@@ -8,7 +8,7 @@ const { normalize } = require('./normalize');
 // كلمات البحث لاكس سايت وبيست (لسامسونق بدون "galaxy": اكس سايت ما يكتبها دايماً)
 const QUERIES = [
   'iphone 18 pro max', 'iphone 18 pro', 'iphone 18',
-  'iphone 17 pro max', 'iphone 17 pro', 'iphone 17 256gb', 'iphone 17 512gb', 'iphone air', 'iphone 17e',
+  'iphone 17 pro max', 'iphone 17 pro', 'iphone 17 256gb', 'iphone 17 512gb',
   's26 ultra', 's25 ultra',
 ];
 const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\s+/).filter(Boolean);
@@ -44,7 +44,8 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     const hay = (r.model + ' ' + r.storage).toLowerCase();
     const requested = extra.some(q => words(q).every(w => hay.replace(/\s+/g, '').includes(w.replace(/\s+/g, '')) || hay.includes(w)));
     // من سامسونق المستخدم يبي الالترا بس هالفترة (لا عادي ولا بلس ولا FE ولا فولد/فليب)، إلا لو طلب جهاز بالاسم
-    const skipped = r.brand === 'Samsung' && !/\bUltra\b/.test(r.model);
+    // ومن ايفون ما يبي Air ولا e
+    const skipped = (r.brand === 'Samsung' && !/\bUltra\b/.test(r.model)) || (r.brand === 'Apple' && /\bAir\b|\d+e$/.test(r.model));
     if ((r.xcite || r.best || requested) && (!skipped || requested)) rows[id] = r;
   }
   const stats = { xcite: 0, eureka: 0, best: 0 };

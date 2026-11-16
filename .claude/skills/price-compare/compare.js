@@ -5,10 +5,10 @@ const { chromium } = require('playwright');
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 
 const STORES = [
-  { key: 'xcite',  name: 'X-cite',          url: q => `https://www.xcite.com/search?q=${q}` },
+  { key: 'xcite',  name: 'X-cite',          url: q => `https://www.xcite.com/search?q=${q}`, link: '/p$' },
   // يوريكا: البحث عندهم ما يشتغل من هنا، فنفتح قسم الهواتف الذكية ونفلتر على الماركة
-  { key: 'eureka', name: 'Eureka',          url: () => 'https://www.eureka.com.kw/products/browse/phones/mobile-phones/smart-phones', eurekaBrowse: true },
-  { key: 'best',   name: 'Best Al-Yousifi', url: q => `https://best.com.kw/en/search/${q}` },
+  { key: 'eureka', name: 'Eureka',          url: () => 'https://www.eureka.com.kw/products/browse/phones/mobile-phones/smart-phones', eurekaBrowse: true, link: '/products/details/' },
+  { key: 'best',   name: 'Best Al-Yousifi', url: q => `https://best.com.kw/en/search/${q}`, link: '/product/' },
 ];
 
 // يدعم "359.900 KD" (اكس سايت ويوريكا) و "KD 349.900" (بيست)
@@ -70,19 +70,66 @@ async function pageLines(browser, store, query) {
     } else {
       await page.waitForTimeout(8000);
     }
-    return (await page.evaluate(() => document.body.innerText)).split('\n').map(s => s.trim()).filter(Boolean);
+    const lines = (await page.evaluate(() => document.body.innerText)).split('\n').map(s => s.trim()).filter(Boolean);
+    // كل كرت جهاز لحاله: الاسم + الرابط (فيه كود المنتج، مثل -US أو -JP) + نص الكرت (الأسعار والتوفر)
+    const cards = await page.evaluate(linkRe => {
+      const re = new RegExp(linkRe), out = [], seen = new Set();
+      const anchors = [...document.querySelectorAll('a[href]')].filter(a => re.test(a.href.split('?')[0]));
+      for (const a of anchors) {
+        const href = a.href; if (seen.has(href)) continue;
+        let c = a;
+        while (c.parentElement) {
+          const up = c.parentElement;
+          const hrefs = new Set([...up.querySelectorAll('a[href]')].filter(x => re.test(x.href.split('?')[0])).map(x => x.href));
+          if (hrefs.size > 1) break;
+          c = up;
+          if (/(KD|KWD)\s*\d|\d\s*(KD|KWD)/.test(c.innerText || '')) { /* keep climbing while still one product */ }
+        }
+        const text = (c.innerText || '').trim();
+        if (!/(KD|KWD|د\.ك)/.test(text)) continue;
+        const title = [...c.querySelectorAll('a[href]')].filter(x => x.href === href).map(x => x.textContent.trim()).sort((x, y) => y.length - x.length)[0] || '';
+        seen.add(href);
+        out.push({ href, title, text });
+      }
+      return out;
+    }, store.link || '^$');
+    return { lines, cards };
   } finally { await page.close(); }
+}
+
+// نسخ مو خليجية: من الاسم أو من كود المنتج في الرابط (بيست يكتبها بالكود بس: IPH-18P-256-SLV-US)
+const FOREIGN = /japan|amer[ia]|ameriacn|\bjp\b|\busa?\b|international|[-_](us|jp|usa|hk|ch)(?=[\/?#._-]|$)/i;
+
+function parseCards(cards, query) {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const items = [];
+  for (const c of cards) {
+    // بيست يلف الكرت كله بالرابط، فننظف الاسم من الأسعار والشارات
+    const title = (c.title || c.text.split('\n')[0]).replace(/\s+/g, ' ')
+      .split(/\s(?:KD|KWD)\s*\d|\s\d[\d,.]*\s*(?:KD|KWD)\b|\sOn Credit|\sOUT OF STOCK|\sBest Seller|\s\d+%/i)[0].replace(/^(?:OUT OF STOCK|Best Seller|New)\s+/i, '').trim();
+    if (title.length < 8 || !words.every(w => title.toLowerCase().includes(w))) continue;
+    const prices = c.text.split('\n').map(l => l.trim()).filter(l => !NOT_PRICE.test(l)).map(l => l.match(PRICE)).filter(Boolean).map(num);
+    if (!prices.length) continue;
+    const item = { title, price: Math.min(...prices), was: prices.length > 1 ? Math.max(...prices) : null, href: c.href };
+    if (/out of stock|sold out|غير متوفر|نفذت|notify me/i.test(c.text)) item.outOfStock = true;
+    if (FOREIGN.test(title) || FOREIGN.test(c.href.split('/').slice(3).join('/'))) item.foreign = true;
+    items.push(item);
+  }
+  return items;
 }
 
 async function scrape(browser, store, query) {
   try {
-    return { store: store.name, items: parseLines(await pageLines(browser, store, query), query) };
+    const { lines, cards } = await pageLines(browser, store, query);
+    const fromCards = parseCards(cards, query);
+    // الكروت أدق (فيها الرابط والتوفر)؛ لو الموقع غيّر شكله ورجعت فاضية نرجع لقراءة السطور
+    return { store: store.name, items: fromCards.length ? fromCards : parseLines(lines, query), via: fromCards.length ? 'cards' : 'lines' };
   } catch (e) {
     return { store: store.name, error: e.message.split('\n')[0], items: [] };
   }
 }
 
-module.exports = { STORES, scrape, pageLines, parseLines, chromium };
+module.exports = { STORES, scrape, pageLines, parseLines, parseCards, FOREIGN, UA, chromium };
 
 if (require.main === module) {
   (async () => {

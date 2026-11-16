@@ -51,7 +51,7 @@ function normalize(results, rows = {}) {
     const k = KEY[r.store];
     if (!k) continue;
     for (const it of r.items) {
-      if (it.price < 60 || it.outOfStock || /result \(/i.test(it.title)) continue;
+      if (it.price < 60 || it.outOfStock || it.foreign || /result \(/i.test(it.title)) continue;
       // نسخ مو خليجية (يوريكا أحياناً يكتبها غلط مثل "Ameriacn")
       if (/japan|amer[ia]|\bjp\b|\busa?\b|\bus version|international/i.test(it.title)) continue;
       const m = model(it.title), st = storage(it.title);
@@ -59,7 +59,10 @@ function normalize(results, rows = {}) {
       const id = idOf(m[1], st);
       const row = rows[id] ||= { brand: m[0], model: m[1], storage: st, xcite: null, eureka: null, best: null };
       const cur = row[k];
-      if (!cur || it.price < cur.price) row[k] = { price: it.price, color: color(it.title) };
+      // نحفظ كل المرشحين (من الأرخص) عشان لو الأرخص طلع مو متوفر بصفحة المنتج ناخذ اللي بعده
+      (row._cand ||= {})[k] ||= [];
+      row._cand[k].push({ price: it.price, color: color(it.title), href: it.href || null });
+      if (!cur || it.price < cur.price) row[k] = { price: it.price, color: color(it.title), href: it.href || null };
     }
   }
   return rows;

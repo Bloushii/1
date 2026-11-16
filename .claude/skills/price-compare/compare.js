@@ -38,7 +38,12 @@ function parseLines(lines, query) {
       else if (prices.length) break;
     }
     // بيست يكتب "OUT OF STOCK" بالسطر اللي فوق اسم الجهاز
-    const outOfStock = i > 0 && /out of stock|sold out|غير متوفر|نفذت/i.test(lines[i - 1]);
+    // (نشيك ٣ سطور فوق الاسم لين نوصل لسعر الجهاز اللي قبله، عشان لو جت شارة ثانية مثل "Best Seller" بالنص)
+    let outOfStock = false;
+    for (let j = i - 1; j >= Math.max(0, i - 3); j--) {
+      if (PRICE.test(lines[j]) || NOT_PRICE.test(lines[j])) break;
+      if (/out of stock|sold out|غير متوفر|نفذت/i.test(lines[j])) { outOfStock = true; break; }
+    }
     if (prices.length) items.push({ title: lines[i], price: Math.min(...prices), was: prices.length > 1 ? Math.max(...prices) : null, ...(outOfStock && { outOfStock: true }) });
   }
   return items;

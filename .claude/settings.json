@@ -3,9 +3,17 @@
     "allow": [
       "Bash(node .claude/skills/price-compare/compare.js:*)",
       "Bash(node .claude/skills/price-compare/update.js:*)",
-      "Bash(git fetch origin claude/focused-lamport-hnxvx9:*)",
-      "Bash(git checkout FETCH_HEAD -- .claude/skills/price-compare .claude/settings.json)",
-      "ArtifactData"
+      "Bash(node:*)",
+      "Bash(git:*)",
+      "Bash(cd:*)",
+      "Read",
+      "Edit",
+      "Write",
+      "ArtifactData",
+      "Artifact",
+      "mcp__claude-code-remote__update_trigger",
+      "mcp__claude-code-remote__get_trigger",
+      "mcp__claude-code-remote__list_triggers"
     ]
   }
 }

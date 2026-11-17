@@ -1,19 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node .claude/skills/price-compare/compare.js:*)",
-      "Bash(node .claude/skills/price-compare/update.js:*)",
-      "Bash(node:*)",
-      "Bash(git:*)",
-      "Bash(cd:*)",
+      "Bash",
       "Read",
       "Edit",
       "Write",
+      "WebSearch",
+      "WebFetch",
       "ArtifactData",
       "Artifact",
       "mcp__claude-code-remote__update_trigger",
       "mcp__claude-code-remote__get_trigger",
-      "mcp__claude-code-remote__list_triggers"
+      "mcp__claude-code-remote__list_triggers",
+      "mcp__claude-code-remote__get_environment",
+      "mcp__claude-code-remote__update_environment"
     ]
   }
 }

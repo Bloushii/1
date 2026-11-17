@@ -44,7 +44,8 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     const requested = extra.some(q => words(q).every(w => hay.replace(/\s+/g, '').includes(w.replace(/\s+/g, '')) || hay.includes(w)));
     // من سامسونق المستخدم يبي الالترا بس هالفترة (لا عادي ولا بلس ولا FE ولا فولد/فليب)، إلا لو طلب جهاز بالاسم
     // ومن ايفون ما يبي Air ولا e
-    const skipped = (r.brand === 'Samsung' && !/\bUltra\b/.test(r.model)) || (r.brand === 'Apple' && /\bAir\b|\d+e$/.test(r.model));
+    // ومن ايفون: 17 و18 بس (العادي و Pro و Pro Max)، بدون Air ولا e ولا الموديلات القديمة
+    const skipped = (r.brand === 'Samsung' && !/\bUltra\b/.test(r.model)) || (r.brand === 'Apple' && (/\bAir\b|\d+e$|Plus/.test(r.model) || !/iPhone (17|18)\b/.test(r.model)));
     if ((r.xcite || r.best || r.jarir || requested) && (!skipped || requested)) rows[id] = r;
   }
   // ===== تأكيد من صفحة المنتج: الأرخص لكل جهاز لازم يكون "In Stock" وبنفس السعر =====
@@ -83,18 +84,21 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     const cand = r._cand || {};
     for (const k of KEYS) (cand[k] ||= []).sort((a, b) => a.price - b.price);
     const verified = {};
-    for (let guard = 0; guard < 12 && checks < 120; guard++) {
-      const live = KEYS.filter(k => cand[k].length);
-      if (!live.length) break;
-      const min = Math.min(...live.map(k => cand[k][0].price));
-      const todo = live.filter(k => cand[k][0].price === min && !verified[k]);
-      if (!todo.length) break; // الأرخص (وأي محل بنفس السعر) مؤكد
-      for (const k of todo) {
-        checks++;
-        const v = await verify(cand[k][0]);
-        if (v.ok) verified[k] = true;
-        else if (v.drop) { process.stderr.write(`  drop ${k} ${id} ${cand[k][0].price} (${v.why})\n`); cand[k].shift(); }
-        else { process.stderr.write(`  unverified ${k} ${id} ${cand[k][0].price} (${v.why})\n`); verified[k] = 'unknown'; }
+    // جولتين: الأرخص من كل المحلات، وبعدها الأرخص من غير جرير (عشان يكون فيه دايماً خيار مؤكد التوفر)
+    for (const pool of [KEYS, KEYS.filter(k => k !== 'jarir')]) {
+      for (let guard = 0; guard < 12 && checks < 160; guard++) {
+        const live = pool.filter(k => cand[k].length);
+        if (!live.length) break;
+        const min = Math.min(...live.map(k => cand[k][0].price));
+        const todo = live.filter(k => cand[k][0].price === min && !verified[k]);
+        if (!todo.length) break; // الأرخص (وأي محل بنفس السعر) انشيك
+        for (const k of todo) {
+          checks++;
+          const v = await verify(cand[k][0]);
+          if (v.ok) verified[k] = true;
+          else if (v.drop) { process.stderr.write(`  drop ${k} ${id} ${cand[k][0].price} (${v.why})\n`); cand[k].shift(); }
+          else { process.stderr.write(`  unverified ${k} ${id} ${cand[k][0].price} (${v.why})\n`); verified[k] = 'unknown'; }
+        }
       }
     }
     for (const k of KEYS) {

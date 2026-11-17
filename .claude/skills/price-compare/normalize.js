@@ -40,7 +40,7 @@ function color(t) {
   const parts = t.split(/\s[-–]\s/);
   // يوريكا ما يحط شرطة قبل اللون: ناخذ اللي بعد آخر "Ram" أو "5G" أو "GB"
   const c = parts.length > 1 ? parts.pop() : (t.split(/\b(?:ram|5g|4g|gb|tb)\b/i).pop() || '');
-  return c.replace(/[.,]$/, '').replace(/\b[A-Z0-9]{2,}-[A-Z0-9]{4,}\b/g, '').trim();
+  return c.replace(/\d{1,3}\.\d{3}.*$/, '').replace(/[.,]$/, '').replace(/\b[A-Z0-9]{2,}-[A-Z0-9]{4,}\b/g, '').trim();
 }
 
 const idOf = (m, st) => (m + ' ' + st).toLowerCase().replace(/\+/g, 'plus').replace(/[^a-z0-9]+/g, '-');

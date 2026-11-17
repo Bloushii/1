@@ -108,7 +108,7 @@ function parseCards(cards, query) {
   for (const c of cards) {
     // بيست يلف الكرت كله بالرابط، فننظف الاسم من الأسعار والشارات
     const title = (c.title || c.text.split('\n')[0]).replace(/\s+/g, ' ')
-      .split(/\s(?:KD|KWD)\s*\d|\s\d[\d,.]*\s*(?:KD|KWD)\b|\sOn Credit|\sOUT OF STOCK|\sBest Seller|\s\d+%/i)[0].replace(/^(?:OUT OF STOCK|Best Seller|New)\s+/i, '').trim();
+      .split(/\s(?:KD|KWD)\s*\d|\s\d[\d,.]*\s*(?:KD|KWD)\b|\d{1,3}\.\d{3}(?:\s*(?:KD|KWD))?|\sOn Credit|\sOUT OF STOCK|\sBest Seller|\s\d+%/i)[0].replace(/^(?:OUT OF STOCK|Best Seller|New)\s+/i, '').trim();
     if (title.length < 8 || !words.every(w => title.toLowerCase().includes(w))) continue;
     const prices = c.text.split('\n').map(l => l.trim()).filter(l => !NOT_PRICE.test(l)).map(l => l.match(PRICE)).filter(Boolean).map(num);
     if (!prices.length) continue;

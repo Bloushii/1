@@ -21,6 +21,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
   const browser = await chromium.launch();
   const results = [], problems = [];
   const xcite = STORES.find(s => s.key === 'xcite'), best = STORES.find(s => s.key === 'best'), eureka = STORES.find(s => s.key === 'eureka'), jarir = STORES.find(s => s.key === 'jarir');
+  const extraStores = ['hs', 'alpha', 'blink', 'gait'].map(k => STORES.find(s => s.key === k));
 
   async function run(store, q) {
     let r = await scrape(browser, store, q);
@@ -30,7 +31,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     process.stderr.write(`${store.name.padEnd(16)} ${q.padEnd(22)} ${r.items.length}\n`);
   }
 
-  for (const q of queries) { await run(xcite, q); await run(best, q); await run(jarir, q); }
+  for (const q of queries) { await run(xcite, q); await run(best, q); await run(jarir, q); for (const st of extraStores) await run(st, q); }
   // يوريكا: نفتح قائمة كل ماركة مرة وحدة (يغطي كل الموديلات)
   const brands = new Set(['iphone', 'samsung']);
   for (const q of extra) if (!/iphone|apple|samsung|galaxy|s\d\d|z\s?(fold|flip)/i.test(q)) brands.add(q.split(/\s+/)[0]);
@@ -46,13 +47,15 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     // ومن ايفون ما يبي Air ولا e
     // ومن ايفون: 17 و18 بس (العادي و Pro و Pro Max)، بدون Air ولا e ولا الموديلات القديمة
     const skipped = (r.brand === 'Samsung' && !/\bUltra\b/.test(r.model)) || (r.brand === 'Apple' && (/\bAir\b|\d+e$|Plus/.test(r.model) || !/iPhone (17|18)\b/.test(r.model)));
-    if ((r.xcite || r.best || r.jarir || requested) && (!skipped || requested)) rows[id] = r;
+    if ((r.xcite || r.best || r.jarir || r.hs || r.alpha || r.blink || r.gait || requested) && (!skipped || requested)) rows[id] = r;
   }
   // ===== تأكيد من صفحة المنتج: الأرخص لكل جهاز لازم يكون "In Stock" وبنفس السعر =====
   // لو مو متوفر أو السعر تغيّر، ناخذ المرشح اللي بعده من نفس المحل، ونعيد لين يطلع أرخص سعر مؤكد
   const page = await browser.newPage({ userAgent: UA, viewport: { width: 1366, height: 900 } });
   const checked = new Map();
   async function verify(c) {
+    // بلينك وجيت: التوفر والسعر قريناهم من بيانات المتجر نفسه لكل سعة/لون
+    if (c.preVerified) return { ok: true };
     if (!c.href) return { ok: false, why: 'no link' };
     // جرير يحجب صفحات المنتجات عن المتصفح الآلي: نخلي السعر بس ما نقدر نأكد التوفر
     if (/jarir\.com/.test(c.href)) return { ok: false, drop: false, why: 'Jarir blocks product pages' };
@@ -78,7 +81,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     checked.set(c.href, res);
     return res;
   }
-  const KEYS = ['xcite', 'eureka', 'best', 'jarir'];
+  const KEYS = ['xcite', 'eureka', 'best', 'jarir', 'hs', 'alpha', 'blink', 'gait'];
   let checks = 0;
   for (const [id, r] of Object.entries(rows)) {
     const cand = r._cand || {};
@@ -103,7 +106,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     }
     for (const k of KEYS) {
       const c = cand[k][0];
-      r[k] = c ? { price: c.price, color: c.color, href: c.href, ...(verified[k] === true && { verified: true }) } : null;
+      r[k] = c ? { price: c.price, color: c.color, href: c.href, ...((verified[k] === true || c.preVerified) && { verified: true }) } : null;
     }
     delete r._cand;
     if (!KEYS.some(k => r[k])) delete rows[id];
@@ -111,7 +114,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
   await browser.close();
   process.stderr.write(`verified with ${checks} product-page checks\n`);
 
-  const stats = { xcite: 0, eureka: 0, best: 0, jarir: 0 };
+  const stats = { xcite: 0, eureka: 0, best: 0, jarir: 0, hs: 0, alpha: 0, blink: 0, gait: 0 };
   for (const r of Object.values(rows)) for (const k of Object.keys(stats)) if (r[k]) stats[k]++;
   for (const [k, n] of Object.entries(stats)) if (!n) problems.push(`${k}: no prices at all`);
   const result = { rows, updatedAt: Date.now(), stats, problems };

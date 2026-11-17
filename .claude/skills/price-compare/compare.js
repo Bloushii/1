@@ -10,6 +10,12 @@ const STORES = [
   { key: 'eureka', name: 'Eureka',          url: () => 'https://www.eureka.com.kw/products/browse/phones/mobile-phones/smart-phones', eurekaBrowse: true, link: '/products/details/' },
   { key: 'best',   name: 'Best Al-Yousifi', url: q => `https://best.com.kw/en/search/${q}`, link: '/product/' },
   // جرير: صفحات المنتجات محمية (Cloudflare)، فناخذ نتائج البحث اللي توصل للصفحة نفسها (فيها السعر بعد الخصم وكود الموديل)
+  { key: 'hs',     name: 'H&S',             url: q => `https://www.hsstore.com/filterSearch?q=${q}&orderBy=11`, link: 'hsstore\\.com/(apple|samsung)-' },
+  { key: 'alpha',  name: 'Alpha Store',     url: q => `https://www.alphastore.com.kw/?s=${q}&post_type=product&lang=en`, link: '/product/' },
+  // بلينك (Shopify): كل منتج فيه سعات وألوان، ناخذ سعر وتوفر كل وحدة من بيانات المتجر نفسه
+  { key: 'blink',  name: 'Blink',           url: q => `https://www.blink.com.kw/search?type=product&q=${q}`, shopify: true },
+  // جيت: صفحة المنتج فيها أزرار (الموديل/السعة)، نضغط كل وحدة ونقرا السعر والتوفر
+  { key: 'gait',   name: 'Gait',            url: q => `https://gait.com.kw/g_kw_en/catalogsearch/result/?q=${q}`, gaitPage: true },
   { key: 'jarir',  name: 'Jarir',           url: q => `https://www.jarir.com/kw-en/catalogsearch/result?search=${q}`, jarirSearch: true },
 ];
 
@@ -100,7 +106,7 @@ async function pageLines(browser, store, query) {
 }
 
 // نسخ مو خليجية: من الاسم أو من كود المنتج في الرابط (بيست يكتبها بالكود بس: IPH-18P-256-SLV-US)
-const FOREIGN = /japan|amer[ia]|ameriacn|\bjp\b|\busa?\b|international|[-_](us|jp|usa|hk|ch)(?=[\/?#._-]|$)/i;
+const FOREIGN = /japan|amer[ia]|ameriacn|\bjp\b|\busa?\b|international|\bh\.?k\b|hong ?kong|[-_](us|jp|usa|hk|ch)(?=[\/?#._-]|$)/i;
 
 function parseCards(cards, query) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -152,7 +158,97 @@ async function scrapeJarir(browser, store, query) {
   return items;
 }
 
+async function scrapeShopify(browser, store, query) {
+  const page = await browser.newPage({ userAgent: UA, viewport: { width: 1366, height: 900 } });
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const items = [];
+  try {
+    await page.goto(store.url(encodeURIComponent(query)), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(6000);
+    const handles = await page.evaluate(() => [...new Set([...document.querySelectorAll('a[href*="/products/"]')].map(a => a.pathname.split('/products/')[1]).filter(Boolean))].slice(0, 30));
+    for (const h of handles) {
+      const j = await page.evaluate(async h => { const r = await fetch('/products/' + h + '.js'); return r.ok ? r.json() : null; }, h).catch(() => null);
+      if (!j || !/iphone|galaxy|samsung/i.test(j.title)) continue;
+      const base = j.title.replace(/\s*-\s*eSIM\b/i, '').trim();
+      for (const v of j.variants || []) {
+        const title = /\d+\s?(GB|TB)/i.test(base) ? base + ' - ' + v.title : base + ' ' + v.title.replace(/\s*\/\s*/, ' - ');
+        if (!words.every(w => title.toLowerCase().replace(/(\d+)\s+(gb|tb)/g, '$1$2').includes(w))) continue;
+        items.push({
+          title, price: v.price / 100, was: v.compare_at_price && v.compare_at_price > v.price ? v.compare_at_price / 100 : null,
+          href: location_origin(store) + '/products/' + h + '?variant=' + v.id,
+          ...(!v.available && { outOfStock: true }), ...(v.available && { preVerified: true }),
+          ...((FOREIGN.test(j.title) || FOREIGN.test(v.title)) && { foreign: true }),
+        });
+      }
+    }
+  } finally { await page.close(); }
+  return items;
+}
+const location_origin = store => new URL(store.url('x')).origin;
+
+// جيت: نجمع صفحات المنتجات من البحث، ونخزنها عشان ما نعيد نفس الصفحة لكل بحث
+const gaitCache = new Map();
+async function scrapeGait(browser, store, query) {
+  const page = await browser.newPage({ userAgent: UA, viewport: { width: 1366, height: 900 } });
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  try {
+    await page.goto(store.url(encodeURIComponent(query)), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(6000);
+    // روابط نتائج البحث بس (مو قائمة الموقع فوق اللي توديك لصفحات أقسام)
+    const links = await page.evaluate(() => [...new Set([...document.querySelectorAll('a.product-item-link, .product-item-info a.product-item-photo, .products a.product-item-link')].filter(a => /^(iphone|samsung|galaxy)\b/i.test(a.textContent.trim() || a.getAttribute('title') || '') && !/case|cover|glass|protector|charger|cable|band/i.test(a.textContent)).map(a => a.href.split('?')[0]))].slice(0, 6));
+    for (const url of links) {
+      if (gaitCache.has(url)) continue;
+      const found = [];
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForTimeout(6000);
+        const groups = await page.evaluate(() => {
+          const h1 = document.querySelector('h1'); let c = h1;
+          const isSize = e => e.children.length === 0 && /^\d+\s?(GB|TB)$/i.test(e.textContent.trim());
+          while (c && ![...c.querySelectorAll('*')].some(isSize)) c = c.parentElement;
+          if (!c) return null;
+          c.setAttribute('data-main-product', '1');
+          const btns = [...c.querySelectorAll('button')].map(b => b.textContent.trim()).filter(Boolean);
+          const COLOR = /orange|blue|silver|black|white|gr[ae]y|gold|green|purple|violet|pink|lavender|sage|burgundy|glacier|mist|titanium|cream|graphite/i;
+          return { models: [...new Set(btns.filter(t => /^(iphone|galaxy)\b/i.test(t)))], sizes: [...new Set(btns.filter(t => /^\d+\s?(GB|TB)$/i.test(t)))], colors: [...new Set(btns.filter(t => t.length < 30 && COLOR.test(t)))] };
+        });
+        if (!groups) { gaitCache.set(url, []); continue; }
+        const click = t => page.evaluate(t => { const c = document.querySelector('[data-main-product]'); const b = [...c.querySelectorAll('button')].find(b => b.textContent.trim() === t); if (b) b.click(); }, t);
+        const read = () => page.evaluate(() => {
+          const c = document.querySelector('[data-main-product]'); const t = c.innerText.split('\n').map(s => s.trim()).filter(Boolean);
+          const prices = t.filter(l => /^KD\s*\d/.test(l)).map(l => parseFloat(l.replace(/[^\d.]/g, ''))).slice(0, 2);
+          return { title: document.querySelector('h1')?.textContent.trim() || '', sku: (t.find(l => /^SKU:/i.test(l)) || '').replace(/SKU:\s*|\s*\|.*$/gi, ''), prices, stock: t.find(l => /IN-STOCK|OUT OF STOCK|OUT-OF-STOCK|SOLD OUT/i.test(l)) || '' };
+        });
+        const seen = new Set();
+        // كل تركيبة: موديل × سعة × لون (بعض السعات ما تجي إلا بألوان معينة)
+        for (const m of (groups.models.length ? groups.models : [null])) {
+          for (const sz of groups.sizes) for (const col of (groups.colors.length ? groups.colors : [null])) {
+            if (m) { await click(m); await page.waitForTimeout(900); }
+            if (col) { await click(col); await page.waitForTimeout(900); }
+            await click(sz); await page.waitForTimeout(1800);
+            const r = await read();
+            if (!new RegExp(sz.replace(/\s/g, '\\s?'), 'i').test(r.title)) continue; // التركيبة مو موجودة والصفحة نطت لغيرها
+            if (!r.title || seen.has(r.sku || r.title) || !r.prices.length) continue;
+            seen.add(r.sku || r.title);
+            const [a, b] = r.prices; const price = b && b < a && b > 50 ? b : a;
+            found.push({ title: r.title, price, was: price < a ? a : null, href: url,
+              ...(/IN-STOCK/i.test(r.stock) ? { preVerified: true } : { outOfStock: true }),
+              ...(/(LL|J|CH|ZP)\/A$/i.test(r.sku) && { foreign: true }) });
+          }
+        }
+      } catch (e) { /* صفحة وحدة فشلت: نكمل الباقي */ }
+      gaitCache.set(url, found);
+    }
+    const all = [...gaitCache.values()].flat();
+    return all.filter(it => words.every(w => it.title.toLowerCase().includes(w)));
+  } finally { await page.close(); }
+}
+
 async function scrape(browser, store, query) {
+  if (store.shopify || store.gaitPage) {
+    try { return { store: store.name, items: await (store.shopify ? scrapeShopify : scrapeGait)(browser, store, query), via: store.shopify ? 'shopify' : 'gait' }; }
+    catch (e) { return { store: store.name, error: e.message.split('\n')[0], items: [] }; }
+  }
   if (store.jarirSearch) {
     try { return { store: store.name, items: await scrapeJarir(browser, store, query), via: 'search' }; }
     catch (e) { return { store: store.name, error: e.message.split('\n')[0], items: [] }; }

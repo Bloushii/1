@@ -1,7 +1,7 @@
 // يحول نتائج compare.js لصف واحد لكل جهاز+سعة، وفيه أرخص سعر بكل محل
 // الاستخدام: node normalize.js <مجلد فيه ملفات JSON من compare.js>
 const fs = require('fs'), path = require('path');
-const KEY = { 'X-cite': 'xcite', 'Eureka': 'eureka', 'Best Al-Yousifi': 'best', 'Jarir': 'jarir' };
+const KEY = { 'X-cite': 'xcite', 'Eureka': 'eureka', 'Best Al-Yousifi': 'best', 'Jarir': 'jarir', 'H&S': 'hs', 'Alpha Store': 'alpha', 'Blink': 'blink', 'Gait': 'gait' };
 const ACCESSORY = /case|cover|protector|glass|charger|cable|adapter|strap|band|lens|holder|stand|skin|pouch|earbuds|buds|watch|tab\b|tablet|ipad/i;
 
 function model(t) {
@@ -57,12 +57,13 @@ function normalize(results, rows = {}) {
       const m = model(it.title), st = storage(it.title);
       if (!m || !st) continue;
       const id = idOf(m[1], st);
-      const row = rows[id] ||= { brand: m[0], model: m[1], storage: st, xcite: null, eureka: null, best: null, jarir: null };
+      const row = rows[id] ||= { brand: m[0], model: m[1], storage: st, xcite: null, eureka: null, best: null, jarir: null, hs: null, alpha: null, blink: null, gait: null };
       const cur = row[k];
       // نحفظ كل المرشحين (من الأرخص) عشان لو الأرخص طلع مو متوفر بصفحة المنتج ناخذ اللي بعده
       (row._cand ||= {})[k] ||= [];
-      row._cand[k].push({ price: it.price, color: color(it.title), href: it.href || null });
-      if (!cur || it.price < cur.price) row[k] = { price: it.price, color: color(it.title), href: it.href || null };
+      const c = { price: it.price, color: color(it.title), href: it.href || null, ...(it.preVerified && { preVerified: true }) };
+      row._cand[k].push(c);
+      if (!cur || it.price < cur.price) row[k] = c;
     }
   }
   return rows;

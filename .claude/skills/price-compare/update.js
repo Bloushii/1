@@ -7,7 +7,7 @@ const { normalize } = require('./normalize');
 
 // كلمات البحث لاكس سايت وبيست (لسامسونق بدون "galaxy": اكس سايت ما يكتبها دايماً)
 const QUERIES = [
-  'iphone 18 pro max', 'iphone 18 pro', 'iphone 18',
+  // ايفون 18 موقوف مؤقتاً بطلب المستخدم (ما عليه سوق حالياً): رجّع 'iphone 18 pro max', 'iphone 18 pro', 'iphone 18' لما يطلب
   'iphone 17 pro max', 'iphone 17 pro', 'iphone 17 256gb', 'iphone 17 512gb',
   's26 ultra', 's25 ultra',
 ];
@@ -46,7 +46,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     // من سامسونق المستخدم يبي الالترا بس هالفترة (لا عادي ولا بلس ولا FE ولا فولد/فليب)، إلا لو طلب جهاز بالاسم
     // ومن ايفون ما يبي Air ولا e
     // ومن ايفون: 17 و18 بس (العادي و Pro و Pro Max)، بدون Air ولا e ولا الموديلات القديمة
-    const skipped = (r.brand === 'Samsung' && !/\bUltra\b/.test(r.model)) || (r.brand === 'Apple' && (/\bAir\b|\d+e$|Plus/.test(r.model) || !/iPhone (17|18)\b/.test(r.model)));
+    const skipped = (r.brand === 'Samsung' && !/\bUltra\b/.test(r.model)) || (r.brand === 'Apple' && (/\bAir\b|\d+e$|Plus/.test(r.model) || !/iPhone 17\b/.test(r.model)));
     if ((r.xcite || r.best || r.jarir || r.hs || r.alpha || r.blink || r.gait || requested) && (!skipped || requested)) rows[id] = r;
   }
   // ===== تأكيد من صفحة المنتج: الأرخص لكل جهاز لازم يكون "In Stock" وبنفس السعر =====

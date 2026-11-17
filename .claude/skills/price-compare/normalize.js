@@ -1,7 +1,7 @@
 // يحول نتائج compare.js لصف واحد لكل جهاز+سعة، وفيه أرخص سعر بكل محل
 // الاستخدام: node normalize.js <مجلد فيه ملفات JSON من compare.js>
 const fs = require('fs'), path = require('path');
-const KEY = { 'X-cite': 'xcite', 'Eureka': 'eureka', 'Best Al-Yousifi': 'best' };
+const KEY = { 'X-cite': 'xcite', 'Eureka': 'eureka', 'Best Al-Yousifi': 'best', 'Jarir': 'jarir' };
 const ACCESSORY = /case|cover|protector|glass|charger|cable|adapter|strap|band|lens|holder|stand|skin|pouch|earbuds|buds|watch|tab\b|tablet|ipad/i;
 
 function model(t) {
@@ -57,7 +57,7 @@ function normalize(results, rows = {}) {
       const m = model(it.title), st = storage(it.title);
       if (!m || !st) continue;
       const id = idOf(m[1], st);
-      const row = rows[id] ||= { brand: m[0], model: m[1], storage: st, xcite: null, eureka: null, best: null };
+      const row = rows[id] ||= { brand: m[0], model: m[1], storage: st, xcite: null, eureka: null, best: null, jarir: null };
       const cur = row[k];
       // نحفظ كل المرشحين (من الأرخص) عشان لو الأرخص طلع مو متوفر بصفحة المنتج ناخذ اللي بعده
       (row._cand ||= {})[k] ||= [];

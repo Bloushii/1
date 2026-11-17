@@ -20,7 +20,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
   const queries = [...new Set([...QUERIES, ...extra.map(s => s.toLowerCase())])];
   const browser = await chromium.launch();
   const results = [], problems = [];
-  const xcite = STORES.find(s => s.key === 'xcite'), best = STORES.find(s => s.key === 'best'), eureka = STORES.find(s => s.key === 'eureka');
+  const xcite = STORES.find(s => s.key === 'xcite'), best = STORES.find(s => s.key === 'best'), eureka = STORES.find(s => s.key === 'eureka'), jarir = STORES.find(s => s.key === 'jarir');
 
   async function run(store, q) {
     let r = await scrape(browser, store, q);
@@ -30,7 +30,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     process.stderr.write(`${store.name.padEnd(16)} ${q.padEnd(22)} ${r.items.length}\n`);
   }
 
-  for (const q of queries) { await run(xcite, q); await run(best, q); }
+  for (const q of queries) { await run(xcite, q); await run(best, q); await run(jarir, q); }
   // يوريكا: نفتح قائمة كل ماركة مرة وحدة (يغطي كل الموديلات)
   const brands = new Set(['iphone', 'samsung']);
   for (const q of extra) if (!/iphone|apple|samsung|galaxy|s\d\d|z\s?(fold|flip)/i.test(q)) brands.add(q.split(/\s+/)[0]);
@@ -45,7 +45,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     // من سامسونق المستخدم يبي الالترا بس هالفترة (لا عادي ولا بلس ولا FE ولا فولد/فليب)، إلا لو طلب جهاز بالاسم
     // ومن ايفون ما يبي Air ولا e
     const skipped = (r.brand === 'Samsung' && !/\bUltra\b/.test(r.model)) || (r.brand === 'Apple' && /\bAir\b|\d+e$/.test(r.model));
-    if ((r.xcite || r.best || requested) && (!skipped || requested)) rows[id] = r;
+    if ((r.xcite || r.best || r.jarir || requested) && (!skipped || requested)) rows[id] = r;
   }
   // ===== تأكيد من صفحة المنتج: الأرخص لكل جهاز لازم يكون "In Stock" وبنفس السعر =====
   // لو مو متوفر أو السعر تغيّر، ناخذ المرشح اللي بعده من نفس المحل، ونعيد لين يطلع أرخص سعر مؤكد
@@ -53,6 +53,8 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
   const checked = new Map();
   async function verify(c) {
     if (!c.href) return { ok: false, why: 'no link' };
+    // جرير يحجب صفحات المنتجات عن المتصفح الآلي: نخلي السعر بس ما نقدر نأكد التوفر
+    if (/jarir\.com/.test(c.href)) return { ok: false, drop: false, why: 'Jarir blocks product pages' };
     if (checked.has(c.href)) return checked.get(c.href);
     let res;
     try {
@@ -75,7 +77,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
     checked.set(c.href, res);
     return res;
   }
-  const KEYS = ['xcite', 'eureka', 'best'];
+  const KEYS = ['xcite', 'eureka', 'best', 'jarir'];
   let checks = 0;
   for (const [id, r] of Object.entries(rows)) {
     const cand = r._cand || {};
@@ -105,7 +107,7 @@ const words = s => s.toLowerCase().replace(/galaxy|samsung|apple/g, '').split(/\
   await browser.close();
   process.stderr.write(`verified with ${checks} product-page checks\n`);
 
-  const stats = { xcite: 0, eureka: 0, best: 0 };
+  const stats = { xcite: 0, eureka: 0, best: 0, jarir: 0 };
   for (const r of Object.values(rows)) for (const k of Object.keys(stats)) if (r[k]) stats[k]++;
   for (const [k, n] of Object.entries(stats)) if (!n) problems.push(`${k}: no prices at all`);
   const result = { rows, updatedAt: Date.now(), stats, problems };

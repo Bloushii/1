@@ -9,6 +9,8 @@ const STORES = [
   // يوريكا: البحث عندهم ما يشتغل من هنا، فنفتح قسم الهواتف الذكية ونفلتر على الماركة
   { key: 'eureka', name: 'Eureka',          url: () => 'https://www.eureka.com.kw/products/browse/phones/mobile-phones/smart-phones', eurekaBrowse: true, link: '/products/details/' },
   { key: 'best',   name: 'Best Al-Yousifi', url: q => `https://best.com.kw/en/search/${q}`, link: '/product/' },
+  // جرير: صفحات المنتجات محمية (Cloudflare)، فناخذ نتائج البحث اللي توصل للصفحة نفسها (فيها السعر بعد الخصم وكود الموديل)
+  { key: 'jarir',  name: 'Jarir',           url: q => `https://www.jarir.com/kw-en/catalogsearch/result?search=${q}`, jarirSearch: true },
 ];
 
 // يدعم "359.900 KD" (اكس سايت ويوريكا) و "KD 349.900" (بيست)
@@ -118,7 +120,43 @@ function parseCards(cards, query) {
   return items;
 }
 
+async function scrapeJarir(browser, store, query) {
+  const page = await browser.newPage({ userAgent: UA, viewport: { width: 1366, height: 900 } });
+  let data = null;
+  page.on('response', async r => { if (/ac\.cnstrc\.com\/v1\/search\//.test(r.url())) { try { data = await r.json(); } catch (e) {} } });
+  try {
+    await page.goto(store.url(encodeURIComponent(query)), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    for (let w = 0; w < 10 && !data; w++) await page.waitForTimeout(1500);
+  } finally { await page.close(); }
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const items = [];
+  for (const res of data?.response?.results || []) {
+    const d = res.data || {}, m = d.metadata || {};
+    let extra = {}; try { extra = JSON.parse(m.additionalDataToReturn || '{}'); } catch (e) {}
+    // الاسم مثل: "Apple iPhone 17 Pro, 256 GB, Deep Blue, 5G, ..." → نخليه بصيغة الباقين
+    const raw = res.value || m.name || '';
+    const parts = raw.split(',').map(x => x.trim());
+    const title = (parts[0] + ' ' + (parts[1] || '').replace(/\s+/g, '').replace(/^1000GB$/, '1TB') + ' - ' + (parts[2] || '')).trim();
+    if (!words.every(w => raw.toLowerCase().replace(/\s+gb/g, 'gb').includes(w) || title.toLowerCase().includes(w))) continue;
+    const list = Number(d.price || m.price), final = Number(extra.GTM_final_price || list);
+    if (!final) continue;
+    const mpn = String(m.mpn || '');
+    items.push({
+      title, price: final, was: list > final ? list : null,
+      href: d.url ? 'https://www.jarir.com/kw-en/' + d.url : null,
+      unverifiable: true,
+      // كود أبل: AH/AE = خليجي، LL = أمريكي، J = ياباني
+      ...(/(LL|J|CH|ZP)A?$/i.test(mpn.replace(/\/A$/i, '')) && { foreign: true }),
+    });
+  }
+  return items;
+}
+
 async function scrape(browser, store, query) {
+  if (store.jarirSearch) {
+    try { return { store: store.name, items: await scrapeJarir(browser, store, query), via: 'search' }; }
+    catch (e) { return { store: store.name, error: e.message.split('\n')[0], items: [] }; }
+  }
   try {
     const { lines, cards } = await pageLines(browser, store, query);
     const fromCards = parseCards(cards, query);

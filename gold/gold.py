@@ -76,6 +76,9 @@ def decide(sell_now=None):
     if S.get("mode") == "dca":
         # DCA: كل dca_every_days نشتري كمية ثابتة، ضعفها أو 3 أضعافها وقت الضعف، ولا شي لو السعر مولّع. ما فيه تداول
         import dca
+        # موعد الشراء الثابت يُحسب من آخر شروة ثابتة بس (الشروات الزيادة "extra" ما تأخره)، نفس lab.py
+        sched = [c for c in holds if not c.get("extra")]
+        last = sched[-1] if sched else None
         due = not last or (date.today() - date.fromisoformat(last["date"])).days >= S["dca_every_days"]
         buy, hold = 0, dca.dca_grams(len(b.rows) - 1, S["dca_base_grams"]) if due and not event else 0
         # فرصة بين مواعيد DCA: إشارة شراء والسعر أرخص من آخر شراء بـ 1.5%
@@ -103,7 +106,7 @@ def decide(sell_now=None):
         nxt = date.fromordinal(date.fromisoformat(last["date"]).toordinal() + S["dca_every_days"]) if last else date.today()
         why = ("خبر كبير خلال 24 ساعة، نشتري أول يوم بعده" if due and event else
                "السعر مرتفع بقوة (RSI فوق 70)، نفوّت هالمرة" if due else f"الشراء الجاي يوم {nxt}")
-        return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=0, hold_grams=hold, why=why,
+        return dict(x, event=event, buy_px=buy_px, sell_px=sell_px, sells=sells, buy_grams=0, hold_grams=hold, why=why, due=due,
                     core_buy=0, pool=profit_pool(), buy_target=0, trim_grams=trim, avg_cost=avg, drawdown=dd, mult=mult, rebuy_grams=rebuy)
     why = "خبر كبير خلال 24 ساعة" if event and x["buy_ok"] else "ما فيه إشارة شراء" if not x["buy_ok"] else "الصفقات المفتوحة ما تسمح"
     pool = profit_pool() + sum((sell_px - t["buy_price"]) * t["grams"] for t in sells)
@@ -159,7 +162,9 @@ elif cmd == "bought":
         if kind == "buy":
             T.append({"id": len(T) + 1, "date": str(date.today()), "grams": n, "buy_price": price, "sell_price": None})
         else:
-            CORE.append({"date": str(date.today()), "grams": n, "price": price, "source": "profit" if kind == "core" else "hold"})
+            e = {"date": str(date.today()), "grams": n, "price": price, "source": "profit" if kind == "core" else "hold"}
+            if kind == "hold" and x.get("due") is False: e["extra"] = True  # شروة زيادة بين المواعيد: ما تأخر الموعد الثابت
+            CORE.append(e)
         print(f"✅ {kind}: {n:g} قرام × {price:.3f}")
     save()
 elif cmd == "sold":

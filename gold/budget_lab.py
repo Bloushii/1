@@ -68,7 +68,7 @@ def S_dca(months):
     n = max(1, int(months * 21 / 10))  # شروة كل 10 أيام تداول (أسبوعين)
     return ("acc", lambda I, C, i, t, st, cash, g, cost: (0, BUDGET / n if t % 10 == 0 and t < n * 10 else 0))
 
-def S_smartdca(months, power, trim=None, dip=True):
+def S_smartdca(months, power, trim=None, dip=True, cap=4):
     # استراتيجيتنا بميزانية: الحصة الأساسية × المضاعف، وشراء زيادة وقت الفرص، ونخلص الكاش خلال المدة تقريباً
     n = max(1, int(months * 21 / 10)); base = BUDGET / n
     def plan(I, C, i, t, st, cash, g, cost):
@@ -77,7 +77,7 @@ def S_smartdca(months, power, trim=None, dip=True):
                 and (st["lastsell"] is None or t - st["lastsell"] >= 21):
             sp = trim[2]; st["lastsell"] = t
         bp = 0
-        m = max(.25, min(4, (I["s200"][i] / C[i]) ** power))
+        m = max(.25, min(cap, (I["s200"][i] / C[i]) ** power))
         if t % 10 == 0:
             bp = 0 if I["rsi"][i] >= 70 else base * m * (2 if lab.dip(I, C, i) else 1)
         elif dip and lab.dip(I, C, i) and st["lastpx"] and C[i] <= st["lastpx"] * .985:
@@ -197,6 +197,11 @@ for first, steps, cap in ((.7, (.03, .06), 4), (.8, (.03, .06), 4), (.6, (.03, .
 # فكرة 14 نوفمبر: نفس الفائز (80% + نزول 3/6 + بيع) بس بدون رجوع: هل الرجوع هو اللي يفيد بمبلغ مرة وحدة؟
 for first in (.8, .7):
     STRATS[f"جديد 14 نوفمبر: {int(first*100)}% + نزول 3/6 + بيع 85/30/50% بدون رجوع"] = S_lump_reserve_trim(first, (.03, .06), 4, (85, 30, .5), 10**6)
+
+# فكرة 21 نوفمبر: نفس DCA الذكي بس بحد المضاعف الحي (8 بدل 4)، على 3 و6 شهور
+for m in (3, 6):
+    STRATS[f"جديد 21 نوفمبر: DCA ذكي {m} شهر قوة 12 حد 8"] = S_smartdca(m, 12, cap=8)
+    STRATS[f"مقارنة: DCA ذكي {m} شهر قوة 12 حد 4"] = S_smartdca(m, 12)
 
 def run(name, C, I, i0, i1):
     kind, f = STRATS[name]

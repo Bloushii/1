@@ -68,7 +68,7 @@ def S_dca(months):
     n = max(1, int(months * 21 / 10))  # شروة كل 10 أيام تداول (أسبوعين)
     return ("acc", lambda I, C, i, t, st, cash, g, cost: (0, BUDGET / n if t % 10 == 0 and t < n * 10 else 0))
 
-def S_smartdca(months, power, trim=None, dip=True, cap=4):
+def S_smartdca(months, power, trim=None, dip=True, cap=4, rally=None):
     # استراتيجيتنا بميزانية: الحصة الأساسية × المضاعف، وشراء زيادة وقت الفرص، ونخلص الكاش خلال المدة تقريباً
     n = max(1, int(months * 21 / 10)); base = BUDGET / n
     def plan(I, C, i, t, st, cash, g, cost):
@@ -78,7 +78,15 @@ def S_smartdca(months, power, trim=None, dip=True, cap=4):
             sp = trim[2]; st["lastsell"] = t
         bp = 0
         m = max(.25, min(cap, (I["s200"][i] / C[i]) ** power))
-        if t % 10 == 0:
+        sched = t % 10 == 0 or st.get("due")
+        if sched and rally:  # فكرة 28 نوفمبر: بعد صعدة rally[0] خلال 3 أيام، نأجل الشروة لين يرجع السعر تحت سعر يوم التأجيل أو تخلص rally[1] أيام تداول
+            if st.get("wst") is None and i >= 3 and C[i] / min(C[i - 3:i]) - 1 >= rally[0]:
+                st["wst"], st["wpx"] = t, C[i]
+            if st.get("wst") is not None and C[i] >= st["wpx"] and t - st["wst"] < rally[1]:
+                st["due"] = True; sched = False
+            else:
+                st["wst"] = None; st["due"] = False
+        if sched:
             bp = 0 if I["rsi"][i] >= 70 else base * m * (2 if lab.dip(I, C, i) else 1)
         elif dip and lab.dip(I, C, i) and st["lastpx"] and C[i] <= st["lastpx"] * .985:
             bp = base * m
@@ -202,6 +210,7 @@ for first in (.8, .7):
 for m in (3, 6):
     STRATS[f"جديد 21 نوفمبر: DCA ذكي {m} شهر قوة 12 حد 8"] = S_smartdca(m, 12, cap=8)
     STRATS[f"مقارنة: DCA ذكي {m} شهر قوة 12 حد 4"] = S_smartdca(m, 12)
+    STRATS[f"جديد 28 نوفمبر: DCA ذكي {m} شهر حد 8 + انتظار بعد صعدة 5%"] = S_smartdca(m, 12, cap=8, rally=(.05, 4))
 
 def run(name, C, I, i0, i1):
     kind, f = STRATS[name]

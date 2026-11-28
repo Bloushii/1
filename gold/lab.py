@@ -81,9 +81,9 @@ def xirr(flows):
         lo, hi = (m, hi) if npv(m) > 0 else (lo, m)
     return m
 
-def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=True, trim=(85, 30, .5), trail=None, rebuy=None, cap=S.get("max_mult", 4), gap=.015, xcool=0, mcap=None, log=None):
+def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=True, trim=(85, 30, .5), trail=None, rebuy=None, cap=S.get("max_mult", 4), gap=.015, xcool=0, mcap=None, rally=None, log=None):
     # يرجع العائد السنوي. الأيام أرقام تداول (كل يوم تداول = 1.4 يوم تقويم تقريباً)
-    g = cost = 0.0; last = lastpx = lastsell = sellpx = lastx = None; flows = []; peak = 0; reserve = 0.0; buys = []
+    g = cost = 0.0; last = lastpx = lastsell = sellpx = lastx = waitst = waitpx = None; flows = []; peak = 0; reserve = 0.0; buys = []
     for i in range(i0, i1):
         day = i * 1.4; px = C[i] * F; spx = px * SP
         if g > 0:
@@ -102,7 +102,15 @@ def run(C, I, i0, i1, every=14, scale="sma", power=12, dipbuy=True, skip_hot=Tru
         if rebuy and reserve > 0 and px <= sellpx * (1 - rebuy / 100):
             g += reserve / px; cost += reserve; reserve = 0
         q = 0
-        if last is None or day - last >= every:
+        due = last is None or day - last >= every
+        if due and rally:  # فكرة 28 نوفمبر: بعد صعدة سريعة (rally[0] خلال 3 أيام) نأجل الشروة الثابتة لين يرجع السعر تحت سعر يوم التأجيل أو تخلص rally[1] أيام تقويم
+            if waitst is None and i >= 3 and C[i] / min(C[i - 3:i]) - 1 >= rally[0]:
+                waitst, waitpx = day, C[i]
+            if waitst is not None and C[i] >= waitpx and day - waitst < rally[1]:
+                due = False
+            else:
+                waitst = None
+        if due:
             last = day; q = 0 if (skip_hot and I["rsi"][i] >= 70) else (2 if dip(I, C, i) else 1)
         elif dipbuy and dip(I, C, i) and lastpx and px <= lastpx * (1 - gap) and (lastx is None or day - lastx >= xcool):
             q = 1; lastx = day  # gap: كم لازم ينزل عن آخر شروة (الحي 1.5%)، xcool: أقل أيام بين الشروات الزيادة (فكرة 21 نوفمبر)
